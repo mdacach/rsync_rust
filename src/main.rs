@@ -1,7 +1,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use bytes::Bytes;
 
+use bytes::Bytes;
 
 fn main() {
     println!("Hello, world!");
@@ -28,4 +28,14 @@ fn equal_contents_have_equal_signatures() {
     let left_signature = compute_signature(left, chunk_size);
     let right_signature = compute_signature(right, chunk_size);
     assert_eq!(left_signature, right_signature);
+}
+
+#[test]
+fn different_contents_have_different_signatures() {
+    let left = Bytes::from("ABCDEFGH");
+    let right = Bytes::from("AB");
+    let chunk_size = 4;
+    let left_signature = compute_signature(left, chunk_size);
+    let right_signature = compute_signature(right, chunk_size);
+    assert_ne!(left_signature, right_signature);
 }
