@@ -1,5 +1,7 @@
 use clap::{Parser, Subcommand};
 
+use rsync_rust::handle_signature_command;
+
 #[derive(Parser)]
 struct Arguments {
     #[command(subcommand)]
@@ -9,8 +11,8 @@ struct Arguments {
 #[derive(Subcommand)]
 enum Commands {
     Signature {
-        file: String,
-        output_file: String,
+        filename: String,
+        output_filename: String,
     },
     Delta,
     Patch,
@@ -20,7 +22,9 @@ fn main() {
     let args = Arguments::parse();
 
     match args.command {
-        Commands::Signature { file, output_file } => {},
+        Commands::Signature { filename, output_filename } => {
+            handle_signature_command(filename, output_filename);
+        }
         Commands::Delta => println!("Delta"),
         Commands::Patch => println!("Patch"),
     }

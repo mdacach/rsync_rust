@@ -1,5 +1,7 @@
 use std::collections::hash_map::DefaultHasher;
+use std::fs::File;
 use std::hash::{Hash, Hasher};
+use std::io::{Read, Write};
 
 use bytes::Bytes;
 
@@ -13,6 +15,36 @@ fn calculate_hash(content: &[u8]) -> u64 {
 fn compute_signature(content: Bytes, chunk_size: usize) -> Vec<u64> {
     let blocks = content.chunks(chunk_size);
     blocks.map(calculate_hash).collect()
+}
+
+pub fn handle_signature_command(filename: String, output_filename: String) {
+    let mut file = match File::open(filename) {
+        Ok(file) => file,
+        Err(error) => {
+            println!("Failed to open file: {error}");
+            return;
+        }
+    };
+
+    let mut file_contents = Vec::new();
+    if file.read_to_end(&mut file_contents).is_ok() {
+        let file_bytes = Bytes::from(file_contents);
+        let signature = compute_signature(file_bytes, 10);
+
+        let mut output_file = match File::create(&output_filename) {
+            Ok(file) => file,
+            Err(error) => {
+                println!("Failed to create file: {output_filename},  {error}");
+                return;
+            }
+        };
+
+        for s in signature {
+            let s = s.to_string();
+            output_file.write_all(s.as_bytes()).unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
+            output_file.write_all(b"\n").unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
+        }
+    };
 }
 
 
