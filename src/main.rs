@@ -23,7 +23,7 @@ fn main() {
 
     match args.command {
         Commands::Signature { filename, output_filename } => {
-            handle_signature_command(filename, output_filename);
+            handle_signature_command(&filename, &output_filename);
         }
         Commands::Delta => println!("Delta"),
         Commands::Patch => println!("Patch"),
