@@ -4,17 +4,40 @@ use std::hash::{Hash, Hasher};
 use std::io::{Read, Write};
 
 use bytes::Bytes;
+use rolling_hash_rust::RollingHash;
+
+type RollingHashType = u64;
+type StrongHashType = u64;
+
+#[derive(Debug, PartialEq, Eq)]
+struct FileSignature {
+    strong_hashes: Vec<StrongHashType>,
+    rolling_hashes: Vec<RollingHashType>,
+}
 
 // Use the default hash is std for now
-fn calculate_hash(content: &[u8]) -> u64 {
+fn calculate_strong_hash(content: &[u8]) -> u64 {
     let mut s = DefaultHasher::new();
     content.hash(&mut s);
     s.finish()
 }
 
-fn compute_signature(content: Bytes, chunk_size: usize) -> Vec<u64> {
+fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
     let blocks = content.chunks(chunk_size);
-    blocks.map(calculate_hash).collect()
+    let strong_hashes = blocks.map(calculate_strong_hash).collect();
+
+    let mut rolling_hashes = Vec::new();
+    let blocks = content.chunks(chunk_size);
+    blocks.for_each(|block| {
+        // TODO: change rolling hash to accept bytes
+        // TODO: make this code better
+        let hasher = RollingHash::from_initial_string(&String::from_utf8(Vec::from(block)).unwrap());
+        let hash = hasher.get_current_hash();
+        rolling_hashes.push(hash);
+    }
+    );
+
+    FileSignature { strong_hashes, rolling_hashes }
 }
 
 pub fn handle_signature_command(filename: String, output_filename: String) {
@@ -39,12 +62,16 @@ pub fn handle_signature_command(filename: String, output_filename: String) {
             }
         };
 
-        for s in signature {
-            let s = s.to_string();
+        let strong_hashes = signature.strong_hashes;
+        let rolling_hashes = signature.rolling_hashes;
+        strong_hashes.iter().zip(rolling_hashes.iter()).for_each(|(s, r)| {
+            let s = s.clone().to_string();
+            let r = r.clone().to_string();
             output_file.write_all(s.as_bytes()).unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
+            output_file.write_all(r.as_bytes()).unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
             output_file.write_all(b"\n").unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
-        }
-    };
+        })
+    }
 }
 
 

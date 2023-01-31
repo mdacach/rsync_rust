@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 bytes = "*"
 clap = { version = "4.1.4", features = ["derive"] }
+rolling_hash_rust = { git = "https://github.com/mdacach/rolling_hash_rust", branch = "main" }
