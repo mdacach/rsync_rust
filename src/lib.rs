@@ -65,6 +65,7 @@ pub fn handle_signature_command(filename: &str, output_filename: &str) {
             let s = s.clone().to_string();
             let r = r.clone().to_string();
             output_file.write_all(s.as_bytes()).unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
+            output_file.write_all(b"\n").unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
             output_file.write_all(r.as_bytes()).unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
             output_file.write_all(b"\n").unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
         })
