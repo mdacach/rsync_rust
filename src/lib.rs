@@ -37,10 +37,7 @@ fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
     }
     );
 
-    FileSignature { strong_hashes, rolling_hashes }
-}
-
-pub fn handle_signature_command(filename: String, output_filename: String) {
+pub fn handle_signature_command(filename: &str, output_filename: &str) {
     let mut file = match File::open(filename) {
         Ok(file) => file,
         Err(error) => {
