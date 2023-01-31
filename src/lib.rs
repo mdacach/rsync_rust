@@ -1,13 +1,16 @@
 use std::collections::hash_map::DefaultHasher;
+use std::fs;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
 use std::io::{Read, Write};
+use std::path::Path;
 
 use bytes::Bytes;
+use itertools::Itertools;
 use rolling_hash_rust::RollingHash;
 
-type RollingHashType = u64;
 type StrongHashType = u64;
+type RollingHashType = u64;
 
 #[derive(Debug, PartialEq, Eq)]
 struct FileSignature {
@@ -15,12 +18,41 @@ struct FileSignature {
     rolling_hashes: Vec<RollingHashType>,
 }
 
-// Use the default hash is std for now
-fn calculate_strong_hash(content: &[u8]) -> u64 {
-    let mut s = DefaultHasher::new();
-    content.hash(&mut s);
-    s.finish()
+// TODO: should it be TryFrom instead?
+// I am using From<File> based on usage I have seen of FromStr, instead of TryFrom<str>
+impl From<File> for FileSignature {
+    // TODO: better error handling
+    fn from(mut file: File) -> Self {
+        let mut file_contents = String::new();
+        file.read_to_string(&mut file_contents).expect("Could not open file");
+
+        let mut strong_hashes = Vec::new();
+        let mut rolling_hashes = Vec::new();
+        file_contents.lines().tuples().for_each(|(strong_hash, rolling_hash)| {
+            strong_hashes.push(strong_hash.parse::<StrongHashType>().unwrap());
+            rolling_hashes.push(rolling_hash.parse::<RollingHashType>().unwrap());
+        }
+        );
+
+        assert_eq!(strong_hashes.len(), rolling_hashes.len());
+        FileSignature { strong_hashes, rolling_hashes }
+    }
 }
+
+// TODO: rethink all of these tests
+#[test]
+fn we_can_decode_signature_from_file() {
+    let data = "To lack feeling is to be dead, but to act on every feeling is to be a child. - Dalinar Kholin";
+    fs::write(".input_temporary", data).expect("Could not create file");
+    let input_signature = compute_signature(Bytes::from(data), 10);
+    handle_signature_command(".input_temporary", ".output_temporary");
+    let output_file = File::open(".output_temporary").expect("Could not open file");
+    // yeah we probably want a Try here
+    let output_signature = FileSignature::from(output_file);
+
+    assert_eq!(input_signature, output_signature);
+}
+
 
 fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
     let blocks = content.chunks(chunk_size);
@@ -37,6 +69,18 @@ fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
     }
     );
 
+    FileSignature { strong_hashes, rolling_hashes }
+}
+
+// Use the default hash is std for now
+fn calculate_strong_hash(content: &[u8]) -> u64 {
+    let mut s = DefaultHasher::new();
+    content.hash(&mut s);
+
+    s.finish()
+}
+
+
 pub fn handle_signature_command(filename: &str, output_filename: &str) {
     let mut file = match File::open(filename) {
         Ok(file) => file,
@@ -51,7 +95,7 @@ pub fn handle_signature_command(filename: &str, output_filename: &str) {
         let file_bytes = Bytes::from(file_contents);
         let signature = compute_signature(file_bytes, 10);
 
-        let mut output_file = match File::create(&output_filename) {
+        let mut output_file = match File::create(output_filename) {
             Ok(file) => file,
             Err(error) => {
                 println!("Failed to create file: {output_filename},  {error}");
