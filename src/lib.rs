@@ -49,6 +49,9 @@ fn we_can_decode_signature_from_file() {
     let output_file = File::open(".output_temporary").expect("Could not open file");
     // yeah we probably want a Try here
     let output_signature = FileSignature::from(output_file);
+    // clean up the temporary files
+    fs::remove_file(".input_temporary").expect("Could not remove file");
+    fs::remove_file(".output_temporary").expect("Could not remove file");
 
     assert_eq!(input_signature, output_signature);
 }
