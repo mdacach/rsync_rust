@@ -18,6 +18,19 @@ struct FileSignature {
     rolling_hashes: Vec<RollingHashType>,
 }
 
+pub fn read_file<P: AsRef<Path>>(path: P) -> color_eyre::Result<Bytes> {
+    let contents = fs::read(path)?;
+
+    Ok(Bytes::from(contents))
+}
+
+pub fn write_to_file<P: AsRef<Path>>(path: P, content: Bytes) -> color_eyre::Result<()> {
+    let mut file = File::open(path)?;
+    file.write_all(&content)?;
+
+    Ok(())
+}
+
 // TODO: should it be TryFrom instead?
 // I am using From<File> based on usage I have seen of FromStr, instead of TryFrom<str>
 impl From<File> for FileSignature {
@@ -38,24 +51,6 @@ impl From<File> for FileSignature {
         FileSignature { strong_hashes, rolling_hashes }
     }
 }
-
-// TODO: rethink all of these tests
-#[test]
-fn we_can_decode_signature_from_file() {
-    let data = "To lack feeling is to be dead, but to act on every feeling is to be a child. - Dalinar Kholin";
-    fs::write(".input_temporary", data).expect("Could not create file");
-    let input_signature = compute_signature(Bytes::from(data), 10);
-    handle_signature_command(".input_temporary", ".output_temporary");
-    let output_file = File::open(".output_temporary").expect("Could not open file");
-    // yeah we probably want a Try here
-    let output_signature = FileSignature::from(output_file);
-    // clean up the temporary files
-    fs::remove_file(".input_temporary").expect("Could not remove file");
-    fs::remove_file(".output_temporary").expect("Could not remove file");
-
-    assert_eq!(input_signature, output_signature);
-}
-
 
 fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
     let blocks = content.chunks(chunk_size);
@@ -84,39 +79,58 @@ fn calculate_strong_hash(content: &[u8]) -> u64 {
 }
 
 
-pub fn handle_signature_command(filename: &str, output_filename: &str) {
-    let mut file = match File::open(filename) {
+pub fn handle_signature_command(file_bytes: Bytes, output_filename: &str) {
+    let signature = compute_signature(file_bytes, 10);
+
+    let mut output_file = match File::create(output_filename) {
         Ok(file) => file,
         Err(error) => {
-            println!("Failed to open file: {error}");
+            println!("Failed to create file: {output_filename},  {error}");
             return;
         }
     };
 
-    let mut file_contents = Vec::new();
-    if file.read_to_end(&mut file_contents).is_ok() {
-        let file_bytes = Bytes::from(file_contents);
-        let signature = compute_signature(file_bytes, 10);
+    let strong_hashes = signature.strong_hashes;
+    let rolling_hashes = signature.rolling_hashes;
+    strong_hashes.iter().zip(rolling_hashes.iter()).for_each(|(s, r)| {
+        let s = s.clone().to_string();
+        let r = r.clone().to_string();
+        output_file.write_all(s.as_bytes()).unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
+        output_file.write_all(b"\n").unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
+        output_file.write_all(r.as_bytes()).unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
+        output_file.write_all(b"\n").unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
+    })
+}
 
-        let mut output_file = match File::create(output_filename) {
-            Ok(file) => file,
-            Err(error) => {
-                println!("Failed to create file: {output_filename},  {error}");
-                return;
-            }
-        };
+pub fn handle_delta_command(signature_filename: &str, desired_filename: &str, delta_filename: &str)
+{
+    let signature_file = File::open(signature_filename).expect("Could not open file");
+    let their_signature = FileSignature::from(signature_file);
+    // we need to compare with our signature
+    let desired_file = File::open(desired_filename).expect("Could not open file");
 
-        let strong_hashes = signature.strong_hashes;
-        let rolling_hashes = signature.rolling_hashes;
-        strong_hashes.iter().zip(rolling_hashes.iter()).for_each(|(s, r)| {
-            let s = s.clone().to_string();
-            let r = r.clone().to_string();
-            output_file.write_all(s.as_bytes()).unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
-            output_file.write_all(b"\n").unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
-            output_file.write_all(r.as_bytes()).unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
-            output_file.write_all(b"\n").unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
-        })
-    }
+    // we need to know the chunk size too
+    let chunk_size = 10;
+
+    let mut rolling_hashes = Vec::new();
+    let bytes = Bytes::from_iter(desired_file.bytes().map(|x| x.unwrap()));
+    let mut windows_iter = bytes.windows(chunk_size);
+    let first_string = String::from_utf8_lossy(windows_iter.next().unwrap());
+    let mut hasher = RollingHash::from_initial_string(&first_string);
+    rolling_hashes.push(hasher.get_current_hash());
+
+    // we do not need windows here, just iterate one-by-one after the initial one
+    windows_iter.for_each(|window| {
+        hasher.pop_front();
+        hasher.push_back(dbg!(*window.last().unwrap() as char));
+        rolling_hashes.push(hasher.get_current_hash());
+    });
+
+    dbg!(rolling_hashes);
+
+    // but our signature is actually a multi-step process
+    // we need to compute a rolling hash for each byte
+    // and only compute a strong hash if needed
 }
 
 
