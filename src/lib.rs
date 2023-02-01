@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 use std::io::{Read, Write};
 use std::path::Path;
 
-use bytes::Bytes;
+use bytes::{BufMut, Bytes, BytesMut};
 use itertools::Itertools;
 use rolling_hash_rust::RollingHash;
 
@@ -79,27 +79,24 @@ fn calculate_strong_hash(content: &[u8]) -> u64 {
 }
 
 
-pub fn handle_signature_command(file_bytes: Bytes, output_filename: &str) {
-    let signature = compute_signature(file_bytes, 10);
-
-    let mut output_file = match File::create(output_filename) {
-        Ok(file) => file,
-        Err(error) => {
-            println!("Failed to create file: {output_filename},  {error}");
-            return;
-        }
-    };
+pub fn handle_signature_command(file_bytes: Bytes, chunk_size: usize) -> Bytes {
+    let signature = compute_signature(file_bytes, chunk_size);
 
     let strong_hashes = signature.strong_hashes;
     let rolling_hashes = signature.rolling_hashes;
+    let content = BytesMut::new();
+    let mut writer = content.writer();
     strong_hashes.iter().zip(rolling_hashes.iter()).for_each(|(s, r)| {
         let s = s.clone().to_string();
         let r = r.clone().to_string();
-        output_file.write_all(s.as_bytes()).unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
-        output_file.write_all(b"\n").unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
-        output_file.write_all(r.as_bytes()).unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
-        output_file.write_all(b"\n").unwrap_or_else(|_| panic!("Could not write to file: {output_filename}"));
-    })
+        let formatted_string = format!("{s}\n{r}\n");
+
+        // As we are writing into bytes::BufMut, this will not Err
+        writer.write_all(formatted_string.as_bytes()).unwrap();
+    });
+
+    // This way we convert from BytesMut into Bytes
+    Bytes::from(writer.into_inner())
 }
 
 pub fn handle_delta_command(signature_filename: &str, desired_filename: &str, delta_filename: &str)

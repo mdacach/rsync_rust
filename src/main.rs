@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
+use color_eyre::eyre::Context;
 
 use rsync_rust::handle_signature_command;
-use rsync_rust::read_file;
 
 #[derive(Parser)]
 struct Arguments {
@@ -29,13 +29,22 @@ fn main() {
 
     let args = Arguments::parse();
 
+    // TODO: this will be changed to be either provided by the caller or read from a config file
+    let global_chunk_size = 10;
+
     match args.command {
         Commands::Signature { filename, output_filename } => {
-            if let Ok(file_bytes) = rsync_rust::read_file(filename.clone()) {
-                handle_signature_command(file_bytes, &output_filename);
-            } else {
-                println!("Unable to read file: {filename}\n\
-                          Are you sure the path provided is correct?");
+            match rsync_rust::read_file(filename.clone()) {
+                Ok(file_bytes) => {
+                    let bytes = handle_signature_command(file_bytes, global_chunk_size);
+
+                    rsync_rust::write_to_file(output_filename, bytes).wrap_err("Unable to write to file").unwrap();
+                }
+                Err(error) => {
+                    println!("Unable to read file: {filename}\n\
+                          Are you sure the path provided is correct?\n\
+                          Error: {error}");
+                }
             }
         }
         Commands::Delta { signature_filename, desired_filename, delta_filename } => println!("Delta"),
