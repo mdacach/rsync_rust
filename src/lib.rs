@@ -152,14 +152,13 @@ pub fn handle_delta_command(signature_file_bytes: Bytes, our_file_bytes: Bytes, 
         // we do not need windows here, just iterate one-by-one after the initial one
         windows_iter.for_each(|window| {
             hasher.pop_front();
-            hasher.push_back(dbg!(*window.last().unwrap() as char));
+            hasher.push_back(*window.last().unwrap() as char);
             rolling_hashes.push(hasher.get_current_hash());
         });
 
         rolling_hashes
     };
 
-    dbg!(&their_signature.rolling_hashes);
 
     let mut delta_content = Vec::new();
     // TODO: optimize this
@@ -167,7 +166,7 @@ pub fn handle_delta_command(signature_file_bytes: Bytes, our_file_bytes: Bytes, 
 
     let combined_iter = rolling_hashes.iter().zip(block_iter);
     let _: Vec<_> = combined_iter.batching(|current_iter| {
-        if let Some((our_hash, block)) = dbg!(current_iter.next()) {
+        if let Some((our_hash, block)) = current_iter.next() {
             let found_this_block_at = their_signature.rolling_hashes.iter().position(|x| x == our_hash);
             match found_this_block_at {
                 Some(index) => {
@@ -188,7 +187,6 @@ pub fn handle_delta_command(signature_file_bytes: Bytes, our_file_bytes: Bytes, 
         } else { None }
     }).collect();
 
-    dbg!(&delta_content);
     Delta { content: delta_content }
 }
 
