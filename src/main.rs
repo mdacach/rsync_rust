@@ -3,7 +3,10 @@ use std::process::exit;
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::Context;
 
-use rsync_rust::{apply_delta, Delta, handle_delta_command, handle_signature_command};
+use rsync_rust::delta::{Delta, handle_delta_command};
+use rsync_rust::io_utils;
+use rsync_rust::patch::apply_delta;
+use rsync_rust::signature::handle_signature_command;
 
 #[derive(Parser)]
 struct Arguments {
@@ -40,11 +43,11 @@ fn main() {
 
     match args.command {
         Commands::Signature { filename, output_filename } => {
-            match rsync_rust::read_file(filename.clone()) {
+            match io_utils::read_file(filename.clone()) {
                 Ok(file_bytes) => {
                     let signature = handle_signature_command(file_bytes, global_chunk_size);
 
-                    rsync_rust::write_to_file(output_filename, signature.into()).wrap_err("Unable to write to file").unwrap();
+                    io_utils::write_to_file(output_filename, signature.into()).wrap_err("Unable to write to file").unwrap();
                 }
                 Err(error) => {
                     println!("Unable to read file: {filename}\n\
@@ -55,7 +58,7 @@ fn main() {
             }
         }
         Commands::Delta { signature_filename, desired_filename, delta_filename } => {
-            let signature_file_bytes = match rsync_rust::read_file(signature_filename.clone()) {
+            let signature_file_bytes = match io_utils::read_file(signature_filename.clone()) {
                 Ok(bytes) => bytes,
                 Err(error) => {
                     println!("Unable to read file: {signature_filename}\n\
@@ -65,7 +68,7 @@ fn main() {
                 }
             };
 
-            let our_file_bytes = match rsync_rust::read_file(desired_filename.clone()) {
+            let our_file_bytes = match io_utils::read_file(desired_filename.clone()) {
                 Ok(bytes) => bytes,
                 Err(error) => {
                     println!("Unable to read file: {desired_filename}\n\
@@ -76,10 +79,10 @@ fn main() {
             };
 
             let delta = handle_delta_command(signature_file_bytes, our_file_bytes, global_chunk_size);
-            rsync_rust::write_to_file(delta_filename, delta.into()).wrap_err("Unable to write to file").unwrap();
+            io_utils::write_to_file(delta_filename, delta.into()).wrap_err("Unable to write to file").unwrap();
         }
         Commands::Patch { basis_filename, delta_filename, recreated_filename } => {
-            let basis_file_bytes = match rsync_rust::read_file(basis_filename.clone()) {
+            let basis_file_bytes = match io_utils::read_file(basis_filename.clone()) {
                 Ok(bytes) => bytes,
                 Err(error) => {
                     println!("Unable to read file: {basis_filename}\n\
@@ -89,7 +92,7 @@ fn main() {
                 }
             };
 
-            let delta_file_bytes = match rsync_rust::read_file(delta_filename.clone()) {
+            let delta_file_bytes = match io_utils::read_file(delta_filename.clone()) {
                 Ok(bytes) => bytes,
                 Err(error) => {
                     println!("Unable to read file: {delta_filename}\n\
@@ -102,7 +105,7 @@ fn main() {
 
             let delta: Delta = delta_file_bytes.into();
             let recreated = apply_delta(basis_file_bytes, delta, global_chunk_size);
-            rsync_rust::write_to_file(recreated_filename, recreated).wrap_err("Unable to write to file").unwrap();
+            io_utils::write_to_file(recreated_filename, recreated).wrap_err("Unable to write to file").unwrap();
         }
     }
 }
