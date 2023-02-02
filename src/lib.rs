@@ -27,6 +27,14 @@ impl From<FileSignature> for Bytes {
     }
 }
 
+// TODO: should it be TryFrom instead?
+// I am using From<Bytes> based on usage I have seen of FromStr, instead of TryFrom<str>
+impl From<Bytes> for FileSignature {
+    fn from(bytes: Bytes) -> Self {
+        serde_json::from_slice(&bytes).expect("Could not deserialize Bytes into FileSignature")
+    }
+}
+
 pub fn read_file<P: AsRef<Path>>(path: P) -> color_eyre::Result<Bytes> {
     let contents = fs::read(path)?;
 
@@ -40,30 +48,6 @@ pub fn write_to_file<P: AsRef<Path>>(path: P, content: Bytes) -> color_eyre::Res
     Ok(())
 }
 
-// TODO: should it be TryFrom instead?
-// I am using From<Bytes> based on usage I have seen of FromStr, instead of TryFrom<str>
-impl From<Bytes> for FileSignature {
-    fn from(bytes: Bytes) -> Self {
-        let mut strong_hashes = Vec::new();
-        let mut rolling_hashes = Vec::new();
-        let each_line = bytes.split(|&byte| byte == b'\n');
-
-        each_line.tuples().for_each(|(strong_hash, rolling_hash)| {
-            let strong_hash_as_array = strong_hash.try_into().unwrap();
-            let strong_hash_as_hash_type = StrongHashType::from_be_bytes(strong_hash_as_array);
-
-            let rolling_hash_as_array = rolling_hash.try_into().unwrap();
-            let rolling_hash_as_hash_type = RollingHashType::from_be_bytes(rolling_hash_as_array);
-
-            strong_hashes.push(strong_hash_as_hash_type);
-            rolling_hashes.push(rolling_hash_as_hash_type);
-        }
-        );
-
-        assert_eq!(strong_hashes.len(), rolling_hashes.len());
-        FileSignature { strong_hashes, rolling_hashes }
-    }
-}
 
 fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
     let blocks = content.chunks(chunk_size);
