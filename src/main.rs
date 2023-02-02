@@ -50,7 +50,29 @@ fn main() {
                 }
             }
         }
-        Commands::Delta { signature_filename, desired_filename, delta_filename } => println!("Delta"),
+        Commands::Delta { signature_filename, desired_filename, delta_filename } => {
+            let signature_file_bytes = match rsync_rust::read_file(signature_filename) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    println!("Unable to read file: {signature_filename}\n\
+                          Are you sure the path provided is correct?\n\
+                          Error: {error}");
+                    exit(1);
+                }
+            };
+
+            let desired_file_bytes = match rsync_rust::read_file(desired_filename) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    println!("Unable to read file: {desired_filename}\n\
+                          Are you sure the path provided is correct?\n\
+                          Error: {error}");
+                    exit(1);
+                }
+            };
+
+            let bytes = handle_delta_command(signature_file_bytes, our_file_bytes, global_chunk_size);
+        }
         Commands::Patch => println!("Patch"),
     }
 }

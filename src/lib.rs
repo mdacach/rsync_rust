@@ -102,44 +102,104 @@ pub fn handle_signature_command(file_bytes: Bytes, chunk_size: usize) -> Bytes {
         // let formatted_string = format!("{s}\n{r}\n");
 
         // As we are writing into bytes::BufMut, this will not Err
-        writer.write_all(formatted_string.as_bytes()).unwrap();
+        // writer.write_all(formatted_string.as_bytes()).unwrap();
     });
 
     // This way we convert from BytesMut into Bytes
     Bytes::from(writer.into_inner())
 }
 
-pub fn handle_delta_command(signature_filename: &str, desired_filename: &str, delta_filename: &str)
-{
-    let signature_file = File::open(signature_filename).expect("Could not open file");
-    let their_signature = FileSignature::from(signature_file);
-    // we need to compare with our signature
-    let desired_file = File::open(desired_filename).expect("Could not open file");
-
-    // we need to know the chunk size too
-    let chunk_size = 10;
-
-    let mut rolling_hashes = Vec::new();
-    let bytes = Bytes::from_iter(desired_file.bytes().map(|x| x.unwrap()));
-    let mut windows_iter = bytes.windows(chunk_size);
-    let first_string = String::from_utf8_lossy(windows_iter.next().unwrap());
-    let mut hasher = RollingHash::from_initial_string(&first_string);
-    rolling_hashes.push(hasher.get_current_hash());
-
-    // we do not need windows here, just iterate one-by-one after the initial one
-    windows_iter.for_each(|window| {
-        hasher.pop_front();
-        hasher.push_back(dbg!(*window.last().unwrap() as char));
-        rolling_hashes.push(hasher.get_current_hash());
-    });
-
-    dbg!(rolling_hashes);
-
-    // but our signature is actually a multi-step process
-    // we need to compute a rolling hash for each byte
-    // and only compute a strong hash if needed
+pub struct Delta {
+    content: Vec<Content>,
 }
 
+#[derive(Debug)]
+enum Content {
+    BlockIndex(usize),
+    LiteralBytes(Vec<u8>),
+}
+
+pub fn handle_delta_command(signature_file_bytes: Bytes, our_file_bytes: Bytes, chunk_size: usize) -> Delta
+{
+    let their_signature = FileSignature::from(signature_file_bytes);
+    // we need to compare with our signature
+
+    let bytes = Bytes::from_iter(our_file_bytes.clone().bytes().map(|x| x.unwrap()));
+
+    let rolling_hashes = {
+        let bytes = bytes.clone();
+        let mut rolling_hashes = Vec::new();
+
+        let mut windows_iter = bytes.windows(chunk_size);
+        let first_string = String::from_utf8_lossy(windows_iter.next().unwrap());
+        let mut hasher = RollingHash::from_initial_string(&first_string);
+        rolling_hashes.push(hasher.get_current_hash());
+
+        // we do not need windows here, just iterate one-by-one after the initial one
+        windows_iter.for_each(|window| {
+            hasher.pop_front();
+            hasher.push_back(dbg!(*window.last().unwrap() as char));
+            rolling_hashes.push(hasher.get_current_hash());
+        });
+
+        rolling_hashes
+    };
+
+    dbg!(&their_signature.rolling_hashes);
+
+    let mut delta_content = Vec::new();
+    // TODO: optimize this
+    let block_iter = bytes.windows(chunk_size);
+
+    let combined_iter = rolling_hashes.iter().zip(block_iter);
+    let _: Vec<_> = combined_iter.batching(|current_iter| {
+        if let Some((our_hash, block)) = dbg!(current_iter.next()) {
+            let found_this_block_at = their_signature.rolling_hashes.iter().position(|x| x == our_hash);
+            match found_this_block_at {
+                Some(index) => {
+                    delta_content.push(Content::BlockIndex(index));
+                    // Skip the next window iterators, this block is already matched
+                    // TODO: probably a better way
+                    //       `advance_by` is experimental
+                    for _ in 0..chunk_size - 2 {
+                        current_iter.next();
+                    }
+                    current_iter.next()
+                }
+                None => {
+                    delta_content.push(Content::LiteralBytes(block.into()));
+                    current_iter.next()
+                }
+            }
+        } else { None }
+    }).collect();
+
+    dbg!(&delta_content);
+    Delta { content: delta_content }
+}
+
+#[test]
+fn delta_for_equal_files_is_just_block_indexes() {
+    let original_bytes = Bytes::from("Hello world");
+    let signature = handle_signature_command(original_bytes, 3);
+    let our_bytes = Bytes::from("Hello world");
+    let delta = handle_delta_command(signature, our_bytes, 3);
+
+    for c in delta.content {
+        assert!(matches!(c, Content::BlockIndex(_)));
+    }
+}
+
+#[test]
+fn delta_for_different_files_has_byte_literals() {
+    let original_bytes = Bytes::from("Hello world");
+    let signature = handle_signature_command(original_bytes, 3);
+    let our_bytes = Bytes::from("Hello world from somewhere else");
+    let delta = handle_delta_command(signature, our_bytes, 3);
+
+    let literal_bytes = delta.content.iter().filter(|x| matches!(x, Content::LiteralBytes(_)));
+    assert!(literal_bytes.count() > 0);
+}
 
 #[test]
 fn equal_contents_have_equal_signatures() {
