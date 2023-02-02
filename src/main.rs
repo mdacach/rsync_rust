@@ -1,7 +1,9 @@
+use std::process::exit;
+
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::Context;
 
-use rsync_rust::handle_signature_command;
+use rsync_rust::{handle_delta_command, handle_signature_command};
 
 #[derive(Parser)]
 struct Arguments {
@@ -44,6 +46,7 @@ fn main() {
                     println!("Unable to read file: {filename}\n\
                           Are you sure the path provided is correct?\n\
                           Error: {error}");
+                    exit(1);
                 }
             }
         }
