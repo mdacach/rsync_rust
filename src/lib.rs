@@ -9,6 +9,7 @@ use std::path::Path;
 use bytes::{BufMut, Bytes, BytesMut};
 use itertools::Itertools;
 use rolling_hash_rust::RollingHash;
+use serde::{Deserialize, Serialize};
 
 type StrongHashType = u64;
 type RollingHashType = u64;
@@ -109,14 +110,51 @@ pub fn handle_signature_command(file_bytes: Bytes, chunk_size: usize) -> Bytes {
     Bytes::from(writer.into_inner())
 }
 
+#[derive(Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize)]
 pub struct Delta {
     content: Vec<Content>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize)]
 enum Content {
     BlockIndex(usize),
     LiteralBytes(Vec<u8>),
+}
+
+// These tests are unnecessary, as serde itself is already well-tested
+// I just wanted to see if it indeed just worked! Amazing.
+#[test]
+fn serde_json() {
+    let content = Delta { content: vec!(Content::BlockIndex(0), Content::LiteralBytes(Vec::from("hello")), Content::BlockIndex(2)) };
+    let json = serde_json::to_string(&content).expect("Something wrong with serde");
+
+    let mut file = File::create("temp").unwrap();
+    file.write_all(json.as_bytes()).unwrap();
+
+    let mut file_to_decode = File::open("temp").unwrap();
+    let mut contents = String::new();
+    file_to_decode.read_to_string(&mut contents).unwrap();
+    let decoded_content: Delta = serde_json::from_str(&contents).unwrap();
+
+    assert_eq!(decoded_content, content);
+}
+
+#[test]
+fn serde_rmp() {
+    let content = Delta { content: vec!(Content::BlockIndex(0), Content::LiteralBytes(Vec::from("hello")), Content::BlockIndex(2)) };
+    let encoded = rmp_serde::encode::to_vec(&content).unwrap();
+
+    let mut file = File::create("temp2").unwrap();
+    file.write_all(&encoded).unwrap();
+
+    let mut file_to_decode = File::open("temp2").unwrap();
+    let mut contents = vec![];
+    file_to_decode.read_to_end(&mut contents).unwrap();
+    let decoded_content: Delta = rmp_serde::decode::from_slice(&contents).unwrap();
+
+    assert_eq!(decoded_content, content);
 }
 
 pub fn handle_delta_command(signature_file_bytes: Bytes, our_file_bytes: Bytes, chunk_size: usize) -> Delta
