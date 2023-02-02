@@ -34,10 +34,8 @@ impl From<Bytes> for Delta {
 
 pub fn compute_delta_to_our_file(signature: FileSignature, our_file_bytes: Bytes, chunk_size: usize) -> Delta
 {
-    let bytes = Bytes::from_iter(our_file_bytes.bytes().map(|x| x.unwrap()));
-
     let rolling_hashes = {
-        let bytes = bytes.clone();
+        let bytes = our_file_bytes.clone();
         let mut rolling_hashes = Vec::new();
 
         let mut windows_iter = bytes.windows(chunk_size);
@@ -58,40 +56,41 @@ pub fn compute_delta_to_our_file(signature: FileSignature, our_file_bytes: Bytes
 
     let mut delta_content = Vec::new();
     // TODO: optimize this
-    let block_iter = bytes.windows(chunk_size);
+    // let block_iter = bytes.windows(chunk_size);
 
-    let combined_iter = rolling_hashes.iter().zip(block_iter);
-    let _: Vec<_> = combined_iter.batching(|current_iter| {
-        if let Some((our_hash, block)) = current_iter.next() {
-            let found_this_block_at = signature.rolling_hashes.iter().position(|x| x == our_hash);
-            match found_this_block_at {
-                Some(index) => {
-                    // TODO: Here we are using only the rolling hash to check for equality,
-                    //       but the risk of collision is considerable. Eventually we will
-                    //       introduce the strong hash to validate each match.
-                    delta_content.push(Content::BlockIndex(index));
-                    // Skip the next window iterators, this block is already matched
-                    // TODO: probably a better way
-                    //       `advance_by` is experimental
-                    for _ in 0..chunk_size - 2 {
-                        current_iter.next();
-                    }
-                    current_iter.next()
-                }
-                None => {
-                    delta_content.push(Content::LiteralBytes(block.into()));
-                    current_iter.next()
-                }
+    let mut their_hashes = signature.rolling_hashes.iter();
+    // We have one rolling hash for each potential block
+    let mut index = 0;
+    let our_file_size = our_file_bytes.len();
+    while index < our_file_size {
+        let block_starting_byte = our_file_bytes[index];
+
+        let end_of_this_block = index + chunk_size - 1;
+        if end_of_this_block >= our_file_size {
+            // This is part of a trailling chunk, which shall be sent directly
+            // as ByteLiteral
+            delta_content.push(Content::ByteLiteral(block_starting_byte));
+            index += 1;
+            continue;
+        }
+
+        // Otherwise, we may trie to match this block
+        let block_rolling_hash = rolling_hashes[index];
+
+        // TODO: Optimize this run-time (we are naively checking each hash in theirs)
+        // TODO: Use strong hash when rolling hashes match
+        let found_this_block_at = their_hashes.position(|&x| block_rolling_hash == x);
+        match found_this_block_at {
+            Some(block_index) => {
+                delta_content.push(Content::BlockIndex(block_index));
+                // All this block is already accounted for
+                index += chunk_size;
             }
-        } else { None }
-    }).collect();
-
-    // The last block will be sent as literal
-    let remainder = bytes.len() % chunk_size;
-    if remainder != 0 {
-        let leftover_items = remainder;
-        let leftover_block = &bytes[bytes.len() - leftover_items..];
-        delta_content.push(Content::LiteralBytes(leftover_block.into()));
+            None => {
+                delta_content.push(Content::ByteLiteral(block_starting_byte));
+                index += 1;
+            }
+        }
     }
 
     Delta { content: delta_content }
