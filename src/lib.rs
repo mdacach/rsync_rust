@@ -14,10 +14,17 @@ use serde::{Deserialize, Serialize};
 type StrongHashType = u64;
 type RollingHashType = u64;
 
+#[derive(Serialize, Deserialize)]
 #[derive(Debug, PartialEq, Eq)]
-struct FileSignature {
+pub struct FileSignature {
     strong_hashes: Vec<StrongHashType>,
     rolling_hashes: Vec<RollingHashType>,
+}
+
+impl From<FileSignature> for Bytes {
+    fn from(value: FileSignature) -> Self {
+        serde_json::to_vec(&value).expect("Could not serialize Delta into JSON").into()
+    }
 }
 
 pub fn read_file<P: AsRef<Path>>(path: P) -> color_eyre::Result<Bytes> {
@@ -85,29 +92,8 @@ fn calculate_strong_hash(content: &[u8]) -> u64 {
 }
 
 
-pub fn handle_signature_command(file_bytes: Bytes, chunk_size: usize) -> Bytes {
-    let signature = compute_signature(file_bytes, chunk_size);
-
-    let strong_hashes = signature.strong_hashes;
-    let rolling_hashes = signature.rolling_hashes;
-    let content = BytesMut::new();
-    let mut writer = content.writer();
-    strong_hashes.iter().zip(rolling_hashes.iter()).for_each(|(s, r)| {
-        let s = s.to_be_bytes();
-        let r = r.to_be_bytes();
-        writer.write_all(&s).unwrap();
-        writer.write_all(b"\n").unwrap();
-        writer.write_all(&r).unwrap();
-        writer.write_all(b"\n").unwrap();
-        // writer.write_all(&s).unwrap();
-        // let formatted_string = format!("{s}\n{r}\n");
-
-        // As we are writing into bytes::BufMut, this will not Err
-        // writer.write_all(formatted_string.as_bytes()).unwrap();
-    });
-
-    // This way we convert from BytesMut into Bytes
-    Bytes::from(writer.into_inner())
+pub fn handle_signature_command(file_bytes: Bytes, chunk_size: usize) -> FileSignature {
+    compute_signature(file_bytes, chunk_size)
 }
 
 #[derive(Debug, Eq, PartialEq)]

@@ -38,9 +38,9 @@ fn main() {
         Commands::Signature { filename, output_filename } => {
             match rsync_rust::read_file(filename.clone()) {
                 Ok(file_bytes) => {
-                    let bytes = handle_signature_command(file_bytes, global_chunk_size);
+                    let signature = handle_signature_command(file_bytes, global_chunk_size);
 
-                    rsync_rust::write_to_file(output_filename, bytes).wrap_err("Unable to write to file").unwrap();
+                    rsync_rust::write_to_file(output_filename, signature.into()).wrap_err("Unable to write to file").unwrap();
                 }
                 Err(error) => {
                     println!("Unable to read file: {filename}\n\
