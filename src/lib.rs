@@ -22,7 +22,7 @@ pub struct FileSignature {
 
 impl From<FileSignature> for Bytes {
     fn from(value: FileSignature) -> Self {
-        serde_json::to_vec(&value).expect("Could not serialize FileSignature into JSON").into()
+        serde_json::to_vec_pretty(&value).expect("Could not serialize FileSignature into JSON").into()
     }
 }
 
@@ -87,7 +87,7 @@ pub struct Delta {
 
 impl From<Delta> for Bytes {
     fn from(value: Delta) -> Self {
-        serde_json::to_vec(&value.content).expect("Could not serialize Delta into JSON").into()
+        serde_json::to_vec_pretty(&value).expect("Could not serialize Delta into JSON").into()
     }
 }
 
