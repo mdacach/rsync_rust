@@ -17,7 +17,7 @@ pub struct Delta {
 #[derive(Serialize, Deserialize)]
 pub enum Content {
     BlockIndex(usize),
-    LiteralBytes(Vec<u8>),
+    ByteLiteral(u8),
 }
 
 impl From<Delta> for Bytes {
@@ -136,7 +136,7 @@ mod tests {
     fn delta_for_equal_content_is_block_indexes_plus_literals_when_there_is_leftover() {
         let test_chunk_size = 5;
         // Hello World! has 12 bytes. We will have 2 chunks of size 5
-        // and a leftover chunk of size 2. This last chunk will be sent as LiteralBytes.
+        // and a leftover chunk of size 2. This last chunk will be sent as two ByteLiterals.
         let file1 = Bytes::from("Hello World!");
         let file2 = Bytes::from("Hello World!");
 
@@ -151,9 +151,11 @@ mod tests {
             assert!(matches!(b, Content::BlockIndex(_)));
         }
 
-        // 1 LiteralBytes (for the leftover chunk).
-        let literal_byte = &delta.content[2];
-        assert!(matches!(literal_byte, Content::LiteralBytes(_)));
+        // 2 ByteLiterals (for the leftover chunk).
+        let byte_literals = &delta.content[2..];
+        for b in byte_literals {
+            assert!(matches!(b, Content::ByteLiteral(_)));
+        }
     }
 
     #[test]
@@ -168,10 +170,8 @@ mod tests {
         let delta = compute_delta_to_our_file(file1_signature, file2, test_chunk_size);
 
         for b in delta.content {
-            assert!(matches!(b, Content::LiteralBytes(_)));
+            assert!(matches!(b, Content::ByteLiteral(_)));
         }
-        // let literal_bytes = delta.content.iter().filter(|x| matches!(x, Content::LiteralBytes(_)));
-        // assert!(literal_bytes.count() > 0);
     }
 
     #[test]
@@ -185,10 +185,10 @@ mod tests {
         let file1_signature = compute_signature(file1, test_chunk_size);
         let delta = compute_delta_to_our_file(file1_signature, file2, test_chunk_size);
 
-        let literal_bytes = delta.content.iter().filter(|x| matches!(x, Content::LiteralBytes(_)));
+        let byte_literals = delta.content.iter().filter(|x| matches!(x, Content::ByteLiteral(_)));
         let block_indexes = delta.content.iter().filter(|x| matches!(x, Content::BlockIndex(_)));
 
-        assert!(literal_bytes.count() > 0);
+        assert!(byte_literals.count() > 0);
         assert!(block_indexes.count() > 0);
     }
 }
