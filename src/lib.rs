@@ -1,12 +1,11 @@
 use std::collections::hash_map::DefaultHasher;
-use std::convert::TryInto;
 use std::fs;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
 use std::io::{Read, Write};
 use std::path::Path;
 
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::Bytes;
 use itertools::Itertools;
 use rolling_hash_rust::RollingHash;
 use serde::{Deserialize, Serialize};
