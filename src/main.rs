@@ -87,7 +87,7 @@ fn handle_delta_command(signature_filename: String, our_file_filename: String, d
         }
     };
 
-    let delta = compute_delta_to_our_file(signature_file_bytes, our_file_bytes, chunk_size);
+    let delta = compute_delta_to_our_file(signature_file_bytes.into(), our_file_bytes, chunk_size);
     io_utils::write_to_file(delta_filename, delta.into()).wrap_err("Unable to write to file").unwrap();
 }
 
