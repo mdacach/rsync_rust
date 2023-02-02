@@ -203,6 +203,20 @@ pub fn handle_delta_command(signature_file_bytes: Bytes, our_file_bytes: Bytes, 
     Delta { content: delta_content }
 }
 
+pub fn apply_delta(basis_file: Bytes, delta: Delta, chunk_size: usize) -> Bytes {
+    let blocks: Vec<_> = basis_file.chunks(chunk_size).collect();
+    let mut reconstructed = Vec::new();
+
+    delta.content.iter().for_each(|c| match c {
+        Content::BlockIndex(index) => {
+            reconstructed.extend(blocks.get(*index).unwrap().to_vec());
+        }
+        Content::LiteralBytes(bytes) => reconstructed.extend(bytes),
+    });
+
+    Bytes::from(reconstructed)
+}
+
 #[test]
 fn delta_for_equal_files_is_just_block_indexes() {
     let original_bytes = Bytes::from("Hello world");

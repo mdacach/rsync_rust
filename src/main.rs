@@ -3,7 +3,7 @@ use std::process::exit;
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::Context;
 
-use rsync_rust::{handle_delta_command, handle_signature_command};
+use rsync_rust::{apply_delta, Delta, handle_delta_command, handle_signature_command};
 
 #[derive(Parser)]
 struct Arguments {
@@ -23,7 +23,11 @@ enum Commands {
         desired_filename: String,
         delta_filename: String,
     },
-    Patch,
+    Patch {
+        basis_filename: String,
+        delta_filename: String,
+        recreated_filename: String,
+    },
 }
 
 fn main() {
@@ -74,7 +78,32 @@ fn main() {
             let delta = handle_delta_command(signature_file_bytes, our_file_bytes, global_chunk_size);
             rsync_rust::write_to_file(delta_filename, delta.into()).wrap_err("Unable to write to file").unwrap();
         }
-        Commands::Patch => println!("Patch"),
+        Commands::Patch { basis_filename, delta_filename, recreated_filename } => {
+            let basis_file_bytes = match rsync_rust::read_file(basis_filename.clone()) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    println!("Unable to read file: {basis_filename}\n\
+                          Are you sure the path provided is correct?\n\
+                          Error: {error}");
+                    exit(1);
+                }
+            };
+
+            let delta_file_bytes = match rsync_rust::read_file(delta_filename.clone()) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    println!("Unable to read file: {delta_filename}\n\
+                          Are you sure the path provided is correct?\n\
+                          Error: {error}");
+                    exit(1);
+                }
+            };
+            dbg!(&delta_file_bytes);
+
+            let delta: Delta = delta_file_bytes.into();
+            let recreated = apply_delta(basis_file_bytes, delta, global_chunk_size);
+            rsync_rust::write_to_file(recreated_filename, recreated).wrap_err("Unable to write to file").unwrap();
+        }
     }
 }
 
