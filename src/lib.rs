@@ -91,6 +91,12 @@ impl From<Delta> for Bytes {
     }
 }
 
+impl From<Bytes> for Delta {
+    fn from(value: Bytes) -> Delta {
+        serde_json::from_slice(&value).expect("Could not deserialize Delta from JSON")
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 #[derive(Serialize, Deserialize)]
 enum Content {
