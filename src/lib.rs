@@ -192,6 +192,14 @@ pub fn handle_delta_command(signature_file_bytes: Bytes, our_file_bytes: Bytes, 
         } else { None }
     }).collect();
 
+    // The last block will be sent as literal
+    let remainder = bytes.len() % chunk_size;
+    if remainder != 0 {
+        let leftover_items = remainder;
+        let leftover_block = &bytes[bytes.len() - leftover_items..];
+        delta_content.push(Content::LiteralBytes(leftover_block.into()));
+    }
+
     Delta { content: delta_content }
 }
 
