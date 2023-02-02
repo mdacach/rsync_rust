@@ -10,7 +10,7 @@ pub fn apply_delta(basis_file: Bytes, delta: Delta, chunk_size: usize) -> Bytes 
         Content::BlockIndex(index) => {
             reconstructed.extend(blocks.get(*index).unwrap().to_vec());
         }
-        Content::LiteralBytes(bytes) => reconstructed.extend(bytes),
+        Content::ByteLiteral(byte) => reconstructed.push(*byte),
     });
 
     Bytes::from(reconstructed)
@@ -22,10 +22,20 @@ mod tests {
 
     use super::*;
 
+    fn create_byte_literals(bytes: &[u8]) -> Vec<Content> {
+        bytes.iter().copied().map(Content::ByteLiteral).collect()
+    }
+
     #[test]
     fn can_construct_file_from_literal_bytes() {
         let test_chunk_size = 3;
-        let delta = Delta { content: vec![Content::LiteralBytes("abc".into()), Content::LiteralBytes("def".into())] };
+
+        let delta = {
+            let mut content = Vec::new();
+            content.extend(create_byte_literals(b"abc"));
+            content.extend(create_byte_literals(b"def"));
+            Delta { content }
+        };
 
         let empty_file = Bytes::new();
         let reconstructed = apply_delta(empty_file, delta, test_chunk_size);
@@ -50,7 +60,14 @@ mod tests {
         let test_chunk_size = 7;
 
         let basis_file = Bytes::from("block1 ");
-        let delta = Delta { content: vec![Content::LiteralBytes("abc".into()), Content::BlockIndex(0), Content::LiteralBytes("abc".into())] };
+
+        let delta = {
+            let mut content = Vec::new();
+            content.extend(create_byte_literals(b"abc"));
+            content.push(Content::BlockIndex(0));
+            content.extend(create_byte_literals(b"abc"));
+            Delta { content }
+        };
 
         let reconstructed = apply_delta(basis_file, delta, test_chunk_size);
 
