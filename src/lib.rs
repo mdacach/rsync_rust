@@ -162,7 +162,7 @@ pub fn handle_delta_command(signature_file_bytes: Bytes, our_file_bytes: Bytes, 
     let their_signature = FileSignature::from(signature_file_bytes);
     // we need to compare with our signature
 
-    let bytes = Bytes::from_iter(our_file_bytes.clone().bytes().map(|x| x.unwrap()));
+    let bytes = Bytes::from_iter(our_file_bytes.bytes().map(|x| x.unwrap()));
 
     let rolling_hashes = {
         let bytes = bytes.clone();
