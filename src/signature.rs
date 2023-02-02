@@ -30,7 +30,7 @@ impl From<Bytes> for FileSignature {
 }
 
 
-fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
+pub fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
     let blocks = content.chunks(chunk_size);
     let strong_hashes = blocks.map(calculate_strong_hash).collect();
 
@@ -54,11 +54,6 @@ fn calculate_strong_hash(content: &[u8]) -> u64 {
     content.hash(&mut s);
 
     s.finish()
-}
-
-
-pub fn handle_signature_command(file_bytes: Bytes, chunk_size: usize) -> FileSignature {
-    compute_signature(file_bytes, chunk_size)
 }
 
 #[cfg(test)]

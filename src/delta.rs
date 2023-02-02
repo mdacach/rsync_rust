@@ -32,7 +32,7 @@ impl From<Bytes> for Delta {
     }
 }
 
-pub fn handle_delta_command(signature_file_bytes: Bytes, our_file_bytes: Bytes, chunk_size: usize) -> Delta
+pub fn compute_delta_to_our_file(signature_file_bytes: Bytes, our_file_bytes: Bytes, chunk_size: usize) -> Delta
 {
     let their_signature = FileSignature::from(signature_file_bytes);
     // we need to compare with our signature
@@ -104,8 +104,6 @@ mod tests {
     use std::io::{Read, Write};
 
     use bytes::Bytes;
-
-    use crate::signature::handle_signature_command;
 
     use super::*;
 
