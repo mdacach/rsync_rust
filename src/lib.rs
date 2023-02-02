@@ -102,6 +102,12 @@ pub struct Delta {
     content: Vec<Content>,
 }
 
+impl From<Delta> for Bytes {
+    fn from(value: Delta) -> Self {
+        serde_json::to_vec(&value.content).expect("Could not serialize Delta into JSON").into()
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 #[derive(Serialize, Deserialize)]
 enum Content {
