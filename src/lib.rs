@@ -207,7 +207,7 @@ fn delta_for_equal_files_is_just_block_indexes() {
     let original_bytes = Bytes::from("Hello world");
     let signature = handle_signature_command(original_bytes, 3);
     let our_bytes = Bytes::from("Hello world");
-    let delta = handle_delta_command(signature, our_bytes, 3);
+    let delta = handle_delta_command(signature.into(), our_bytes, 3);
 
     for c in delta.content {
         assert!(matches!(c, Content::BlockIndex(_)));
@@ -219,7 +219,7 @@ fn delta_for_different_files_has_byte_literals() {
     let original_bytes = Bytes::from("Hello world");
     let signature = handle_signature_command(original_bytes, 3);
     let our_bytes = Bytes::from("Hello world from somewhere else");
-    let delta = handle_delta_command(signature, our_bytes, 3);
+    let delta = handle_delta_command(signature.into(), our_bytes, 3);
 
     let literal_bytes = delta.content.iter().filter(|x| matches!(x, Content::LiteralBytes(_)));
     assert!(literal_bytes.count() > 0);
