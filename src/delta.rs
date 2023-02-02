@@ -66,6 +66,9 @@ pub fn compute_delta_to_our_file(signature: FileSignature, our_file_bytes: Bytes
             let found_this_block_at = signature.rolling_hashes.iter().position(|x| x == our_hash);
             match found_this_block_at {
                 Some(index) => {
+                    // TODO: Here we are using only the rolling hash to check for equality,
+                    //       but the risk of collision is considerable. Eventually we will
+                    //       introduce the strong hash to validate each match.
                     delta_content.push(Content::BlockIndex(index));
                     // Skip the next window iterators, this block is already matched
                     // TODO: probably a better way
