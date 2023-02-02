@@ -32,11 +32,8 @@ impl From<Bytes> for Delta {
     }
 }
 
-pub fn compute_delta_to_our_file(signature_file_bytes: Bytes, our_file_bytes: Bytes, chunk_size: usize) -> Delta
+pub fn compute_delta_to_our_file(signature: FileSignature, our_file_bytes: Bytes, chunk_size: usize) -> Delta
 {
-    let their_signature = FileSignature::from(signature_file_bytes);
-    // we need to compare with our signature
-
     let bytes = Bytes::from_iter(our_file_bytes.bytes().map(|x| x.unwrap()));
 
     let rolling_hashes = {
@@ -66,7 +63,7 @@ pub fn compute_delta_to_our_file(signature_file_bytes: Bytes, our_file_bytes: By
     let combined_iter = rolling_hashes.iter().zip(block_iter);
     let _: Vec<_> = combined_iter.batching(|current_iter| {
         if let Some((our_hash, block)) = current_iter.next() {
-            let found_this_block_at = their_signature.rolling_hashes.iter().position(|x| x == our_hash);
+            let found_this_block_at = signature.rolling_hashes.iter().position(|x| x == our_hash);
             match found_this_block_at {
                 Some(index) => {
                     delta_content.push(Content::BlockIndex(index));
@@ -100,33 +97,95 @@ pub fn compute_delta_to_our_file(signature_file_bytes: Bytes, our_file_bytes: By
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
-    use std::io::{Read, Write};
-
     use bytes::Bytes;
+
+    use crate::signature::compute_signature;
 
     use super::*;
 
-    #[test]
-    fn delta_for_equal_files_is_just_block_indexes() {
-        let original_bytes = Bytes::from("Hello world");
-        let signature = handle_signature_command(original_bytes, 3);
-        let our_bytes = Bytes::from("Hello world");
-        let delta = handle_delta_command(signature.into(), our_bytes, 3);
+// These tests establish that the general idea of the algorithm is working:
+    // 1 - We are referencing blocks on matching chunks
+    // 2 - We are sending byte literals otherwise
+    // The actual specifics of correctness will be tested by integration tests.
 
+    // TODO: test function names are becoming too specific. Think about refactoring with some
+    //       crate or table-driven tests.
+    #[test]
+    fn delta_for_equal_content_is_just_block_indexes_when_chunks_divide_evenly() {
+        let test_chunk_size = 3;
+        // Hello World! has 12 bytes. We will have 4 chunks of size 3 and no leftover.
+        // This means our delta can be 4 references to Blocks.
+        let file1 = Bytes::from("Hello World!");
+        let file2 = Bytes::from("Hello World!");
+
+        let file1_signature = compute_signature(file1, test_chunk_size);
+        // We need to calculate the delta from our file `file2` to `file1` based on
+        // `file1`'s signature.
+        let delta = compute_delta_to_our_file(file1_signature, file2, test_chunk_size);
+
+        // Delta is all BlockIndexes.
         for c in delta.content {
             assert!(matches!(c, Content::BlockIndex(_)));
         }
     }
 
     #[test]
-    fn delta_for_different_files_has_byte_literals() {
-        let original_bytes = Bytes::from("Hello world");
-        let signature = handle_signature_command(original_bytes, 3);
-        let our_bytes = Bytes::from("Hello world from somewhere else");
-        let delta = handle_delta_command(signature.into(), our_bytes, 3);
+    fn delta_for_equal_content_is_block_indexes_plus_literals_when_there_is_leftover() {
+        let test_chunk_size = 5;
+        // Hello World! has 12 bytes. We will have 2 chunks of size 5
+        // and a leftover chunk of size 2. This last chunk will be sent as LiteralBytes.
+        let file1 = Bytes::from("Hello World!");
+        let file2 = Bytes::from("Hello World!");
+
+        let file1_signature = compute_signature(file1, test_chunk_size);
+        // We need to calculate the delta from our file `file2` to `file1` based on
+        // `file1`'s signature.
+        let delta = compute_delta_to_our_file(file1_signature, file2, test_chunk_size);
+
+        // 2 BlockIndex (for the first two chunks).
+        let block_indexes = &delta.content[0..2];
+        for b in block_indexes {
+            assert!(matches!(b, Content::BlockIndex(_)));
+        }
+
+        // 1 LiteralBytes (for the leftover chunk).
+        let literal_byte = &delta.content[2];
+        assert!(matches!(literal_byte, Content::LiteralBytes(_)));
+    }
+
+    #[test]
+    fn delta_for_completely_different_files_has_only_literal_bytes() {
+        let test_chunk_size = 3;
+
+        // Files are completely different, no block will match.
+        let file1 = Bytes::from("ABCDEF");
+        let file2 = Bytes::from("GHIJKL");
+
+        let file1_signature = compute_signature(file1, test_chunk_size);
+        let delta = compute_delta_to_our_file(file1_signature, file2, test_chunk_size);
+
+        for b in delta.content {
+            assert!(matches!(b, Content::LiteralBytes(_)));
+        }
+        // let literal_bytes = delta.content.iter().filter(|x| matches!(x, Content::LiteralBytes(_)));
+        // assert!(literal_bytes.count() > 0);
+    }
+
+    #[test]
+    fn delta_for_similar_files_has_block_indexes_and_literal_bytes() {
+        let test_chunk_size = 3;
+
+        // We should have two matching chunks: "ABC" and "EF ".
+        let file1 = Bytes::from("ZY ABCDEF ");
+        let file2 = Bytes::from("ABCDxEF Z");
+
+        let file1_signature = compute_signature(file1, test_chunk_size);
+        let delta = compute_delta_to_our_file(file1_signature, file2, test_chunk_size);
 
         let literal_bytes = delta.content.iter().filter(|x| matches!(x, Content::LiteralBytes(_)));
+        let block_indexes = delta.content.iter().filter(|x| matches!(x, Content::BlockIndex(_)));
+
         assert!(literal_bytes.count() > 0);
+        assert!(block_indexes.count() > 0);
     }
 }
