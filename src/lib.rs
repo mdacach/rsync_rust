@@ -1,4 +1,5 @@
 use std::collections::hash_map::DefaultHasher;
+use std::convert::TryInto;
 use std::fs;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
@@ -32,18 +33,22 @@ pub fn write_to_file<P: AsRef<Path>>(path: P, content: Bytes) -> color_eyre::Res
 }
 
 // TODO: should it be TryFrom instead?
-// I am using From<File> based on usage I have seen of FromStr, instead of TryFrom<str>
-impl From<File> for FileSignature {
-    // TODO: better error handling
-    fn from(mut file: File) -> Self {
-        let mut file_contents = String::new();
-        file.read_to_string(&mut file_contents).expect("Could not open file");
-
+// I am using From<Bytes> based on usage I have seen of FromStr, instead of TryFrom<str>
+impl From<Bytes> for FileSignature {
+    fn from(bytes: Bytes) -> Self {
         let mut strong_hashes = Vec::new();
         let mut rolling_hashes = Vec::new();
-        file_contents.lines().tuples().for_each(|(strong_hash, rolling_hash)| {
-            strong_hashes.push(strong_hash.parse::<StrongHashType>().unwrap());
-            rolling_hashes.push(rolling_hash.parse::<RollingHashType>().unwrap());
+        let each_line = bytes.split(|&byte| byte == b'\n');
+
+        each_line.tuples().for_each(|(strong_hash, rolling_hash)| {
+            let strong_hash_as_array = strong_hash.try_into().unwrap();
+            let strong_hash_as_hash_type = StrongHashType::from_be_bytes(strong_hash_as_array);
+
+            let rolling_hash_as_array = rolling_hash.try_into().unwrap();
+            let rolling_hash_as_hash_type = RollingHashType::from_be_bytes(rolling_hash_as_array);
+
+            strong_hashes.push(strong_hash_as_hash_type);
+            rolling_hashes.push(rolling_hash_as_hash_type);
         }
         );
 
@@ -87,9 +92,14 @@ pub fn handle_signature_command(file_bytes: Bytes, chunk_size: usize) -> Bytes {
     let content = BytesMut::new();
     let mut writer = content.writer();
     strong_hashes.iter().zip(rolling_hashes.iter()).for_each(|(s, r)| {
-        let s = s.clone().to_string();
-        let r = r.clone().to_string();
-        let formatted_string = format!("{s}\n{r}\n");
+        let s = s.to_be_bytes();
+        let r = r.to_be_bytes();
+        writer.write_all(&s).unwrap();
+        writer.write_all(b"\n").unwrap();
+        writer.write_all(&r).unwrap();
+        writer.write_all(b"\n").unwrap();
+        // writer.write_all(&s).unwrap();
+        // let formatted_string = format!("{s}\n{r}\n");
 
         // As we are writing into bytes::BufMut, this will not Err
         writer.write_all(formatted_string.as_bytes()).unwrap();
