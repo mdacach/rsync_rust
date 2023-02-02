@@ -107,40 +107,6 @@ mod tests {
 
     use super::*;
 
-    // These tests are unnecessary, as serde itself is already well-tested
-    // I just wanted to see if it indeed just worked! Amazing.
-    #[test]
-    fn serde_json() {
-        let content = Delta { content: vec!(Content::BlockIndex(0), Content::LiteralBytes(Vec::from("hello")), Content::BlockIndex(2)) };
-        let json = serde_json::to_string(&content).expect("Something wrong with serde");
-
-        let mut file = File::create("temp").unwrap();
-        file.write_all(json.as_bytes()).unwrap();
-
-        let mut file_to_decode = File::open("temp").unwrap();
-        let mut contents = String::new();
-        file_to_decode.read_to_string(&mut contents).unwrap();
-        let decoded_content: Delta = serde_json::from_str(&contents).unwrap();
-
-        assert_eq!(decoded_content, content);
-    }
-
-    #[test]
-    fn serde_rmp() {
-        let content = Delta { content: vec!(Content::BlockIndex(0), Content::LiteralBytes(Vec::from("hello")), Content::BlockIndex(2)) };
-        let encoded = rmp_serde::encode::to_vec(&content).unwrap();
-
-        let mut file = File::create("temp2").unwrap();
-        file.write_all(&encoded).unwrap();
-
-        let mut file_to_decode = File::open("temp2").unwrap();
-        let mut contents = vec![];
-        file_to_decode.read_to_end(&mut contents).unwrap();
-        let decoded_content: Delta = rmp_serde::decode::from_slice(&contents).unwrap();
-
-        assert_eq!(decoded_content, content);
-    }
-
     #[test]
     fn delta_for_equal_files_is_just_block_indexes() {
         let original_bytes = Bytes::from("Hello world");
