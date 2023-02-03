@@ -52,10 +52,8 @@ pub fn compute_delta_to_our_file(signature: FileSignature, our_file_bytes: Bytes
 
 
     let mut delta_content = Vec::new();
-    // TODO: optimize this
-    // let block_iter = bytes.windows(chunk_size);
 
-    let mut their_hashes = signature.rolling_hashes.iter();
+    let their_hashes: Vec<_> = signature.rolling_hashes.iter().collect();
     // We have one rolling hash for each potential block
     let mut index = 0;
     let our_file_size = our_file_bytes.len();
@@ -76,7 +74,7 @@ pub fn compute_delta_to_our_file(signature: FileSignature, our_file_bytes: Bytes
 
         // TODO: Optimize this run-time (we are naively checking each hash in theirs)
         // TODO: Use strong hash when rolling hashes match
-        let found_this_block_at = their_hashes.position(|&x| block_rolling_hash == x);
+        let found_this_block_at = their_hashes.iter().position(|&&x| block_rolling_hash == x);
         match found_this_block_at {
             Some(block_index) => {
                 delta_content.push(Content::BlockIndex(block_index));
