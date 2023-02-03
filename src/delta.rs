@@ -2,7 +2,7 @@ use bytes::Bytes;
 use rolling_hash_rust::RollingHash;
 use serde::{Deserialize, Serialize};
 
-use crate::signature::FileSignature;
+use crate::signature::{calculate_strong_hash, FileSignature};
 
 #[derive(Debug, Eq, PartialEq)]
 #[derive(Serialize, Deserialize)]
@@ -53,14 +53,14 @@ pub fn compute_delta_to_our_file(signature: FileSignature, our_file_bytes: Bytes
 
     let mut delta_content = Vec::new();
 
-    let their_hashes: Vec<_> = signature.rolling_hashes.iter().collect();
+    let their_rolling_hashes: Vec<_> = signature.rolling_hashes.iter().collect();
     // We have one rolling hash for each potential block
     let mut index = 0;
     let our_file_size = our_file_bytes.len();
     while index < our_file_size {
         let block_starting_byte = our_file_bytes[index];
 
-        let end_of_this_block = index + chunk_size - 1;
+        let end_of_this_block = index + chunk_size - 1; // inclusive
         if end_of_this_block >= our_file_size {
             // This is part of a trailling chunk, which shall be sent directly
             // as ByteLiteral
@@ -73,13 +73,31 @@ pub fn compute_delta_to_our_file(signature: FileSignature, our_file_bytes: Bytes
         let block_rolling_hash = rolling_hashes[index];
 
         // TODO: Optimize this run-time (we are naively checking each hash in theirs)
-        // TODO: Use strong hash when rolling hashes match
-        let found_this_block_at = their_hashes.iter().position(|&&x| block_rolling_hash == x);
+        // TODO: It may happen that the first position match is a rolling hash collision (which does not work)
+        //       but there is another position that is a true positive. This code misses this second block for now
+        let found_this_block_at = their_rolling_hashes.iter().position(|&&x| block_rolling_hash == x);
         match found_this_block_at {
             Some(block_index) => {
-                delta_content.push(Content::BlockIndex(block_index));
-                // All this block is already accounted for
-                index += chunk_size;
+                // This is a potential match. The rolling hashes have matched, but it may be just a
+                // hash collision.
+
+                // Now we must (compute and) check if the strong hashes match too.
+                let block_strong_hash = {
+                    let block_bytes = &our_file_bytes[index..=end_of_this_block];
+                    calculate_strong_hash(block_bytes)
+                };
+                let their_strong_hash = signature.strong_hashes[block_index];
+
+                if block_strong_hash == their_strong_hash {
+                    // We are confident it is a match.
+                    delta_content.push(Content::BlockIndex(block_index));
+                    // All this block is already accounted for
+                    index += chunk_size;
+                } else {
+                    // It was just a hash collision on the rolling hashes. Dodged a bullet here!
+                    delta_content.push(Content::ByteLiteral(block_starting_byte));
+                    index += 1;
+                }
             }
             None => {
                 delta_content.push(Content::ByteLiteral(block_starting_byte));
