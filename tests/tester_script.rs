@@ -154,3 +154,30 @@ fn test_pair_of_big_random_files() {
 
     assert_reconstruction_is_correct_for_given_files(&format!("{identifier_directory}/file1"), &format!("{identifier_directory}/file2"));
 }
+
+// Test directories can contain
+// 1 - One set of files for testing (specifically file1 and file2)
+// 2 - Nested directories
+// But not both. This way we can differentiate a directory which should be tested (because it has files)
+// or that just needs to be traversed.
+fn test_files_inside_directory(directory_path: &str) {
+    let entries: Vec<_> = fs::read_dir(directory_path).expect("Could not read directory path").collect();
+    let nested_directories = entries.iter().filter(|p| p.as_ref().unwrap().path().is_dir());
+
+    let has_only_nested_directories = nested_directories.count() > 0;
+    if has_only_nested_directories {
+        // We need to recursively test the files within nested directories
+        for dir in entries {
+            test_files_inside_directory(dir.unwrap().path().to_str().unwrap());
+        }
+    } else {
+        // This is already just a test directory
+        assert_reconstruction_is_correct_for_given_files(&format!("{directory_path}/file1"), &format!("{directory_path}/file2"));
+    }
+}
+
+#[test]
+fn run_all_test_files() {
+    // TODO: improve this code
+    test_files_inside_directory("tests");
+}
