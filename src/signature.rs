@@ -11,8 +11,8 @@ type RollingHashType = u64;
 #[derive(Serialize, Deserialize)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct FileSignature {
-    strong_hashes: Vec<StrongHashType>,
-    pub(crate) rolling_hashes: Vec<RollingHashType>,
+    pub strong_hashes: Vec<StrongHashType>,
+    pub rolling_hashes: Vec<RollingHashType>,
 }
 
 impl From<FileSignature> for Bytes {
