@@ -49,7 +49,7 @@ pub fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
 }
 
 // Use the default hash is std for now
-fn calculate_strong_hash(content: &[u8]) -> u64 {
+pub fn calculate_strong_hash(content: &[u8]) -> StrongHashType {
     let mut s = DefaultHasher::new();
     content.hash(&mut s);
 
