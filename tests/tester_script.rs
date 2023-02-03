@@ -179,5 +179,5 @@ fn test_files_inside_directory(directory_path: &str) {
 #[test]
 fn run_all_test_files() {
     // TODO: improve this code
-    test_files_inside_directory("tests");
+    test_files_inside_directory("tests/test_files");
 }
