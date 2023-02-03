@@ -111,7 +111,6 @@ fn handle_patch_command(basis_filename: String, delta_filename: String, recreate
             exit(1);
         }
     };
-    dbg!(&delta_file_bytes);
 
     let delta: Delta = delta_file_bytes.into();
     let recreated = apply_delta(basis_file_bytes, delta, chunk_size);
