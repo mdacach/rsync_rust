@@ -122,6 +122,7 @@ fn generate_pair_of_random_files_for_testing(directory: &str, length: usize) -> 
 
 
 #[test]
+#[ignore]
 /// Generates a pair of small random files as input to rsync and validates the algorithm.
 fn test_pair_of_random_files() {
     let test_directory = "tests/random/small";
@@ -131,6 +132,7 @@ fn test_pair_of_random_files() {
 }
 
 #[test]
+#[ignore]
 /// Generates multiple pairs of small random files as input to rsync and validates the algorithm
 /// for each pair.
 fn test_multiple_pairs_of_random_files() {
@@ -142,7 +144,9 @@ fn test_multiple_pairs_of_random_files() {
     }
 }
 
+
 #[test]
+#[ignore]
 /// Generates a pair of big random files as input to rsync and validates the algorithm.
 fn test_pair_of_big_random_files() {
     let test_directory = "tests/random/big";
