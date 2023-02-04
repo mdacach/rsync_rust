@@ -39,8 +39,7 @@ pub fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
     blocks.for_each(|block| {
         // TODO: change rolling hash to accept bytes
         // TODO: make this code better
-        let hasher =
-            RollingHash::from_initial_string(&String::from_utf8(Vec::from(block)).unwrap());
+        let hasher = RollingHash::from_initial_string(&String::from_utf8_lossy(block));
         let hash = hasher.get_current_hash();
         rolling_hashes.push(hash);
     });
