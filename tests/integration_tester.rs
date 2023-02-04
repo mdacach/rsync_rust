@@ -10,13 +10,61 @@ use rand::prelude::*;
 
 use rsync_rust::io_utils;
 
+fn concat_vecs(vecs: &[Vec<u8>]) -> Vec<u8> {
+    let total_len = vecs.iter().map(|v| v.len()).sum();
+    let mut result = Vec::with_capacity(total_len);
+    for v in vecs {
+        result.extend_from_slice(v);
+    }
+    result
+}
+
 #[test]
 #[ignore]
-fn inspect_size_of_generated_files() {
-    let file1 = "tests/test_files/equal_files/file1";
-    let file2 = "tests/test_files/equal_files/file2";
+fn test_linux_kernel_source_code_similarity() {
+    // 84080 files
+    let linux_files_old = gather_files(Path::new("tests/linux_kernel_source_code/linux-6.1.8"));
 
-    let (signature_size, delta_size) = compute_size_of_generated_files(file1, file2);
+    let all_old = concat_vecs(&linux_files_old);
+    println!("old total size: {}", all_old.len());
+
+    // 84078 files
+    let linux_files_new = gather_files(Path::new("tests/linux_kernel_source_code/linux-6.1.9"));
+    let all_new = concat_vecs(&linux_files_new);
+    println!("new total size: {}", all_new.len());
+
+    io_utils::write_to_file("file1.tmp", all_old.into())
+        .expect("Could not write linux to single file");
+    io_utils::write_to_file("file2.tmp", all_new.into())
+        .expect("Could not write linux to single file");
+
+    inspect_size_of_generated_files("file1.tmp", "file2.tmp", 1_000_000);
+}
+
+fn gather_files(path: &Path) -> Vec<Vec<u8>> {
+    let mut files = Vec::new();
+
+    if path.is_dir() {
+        for entry in fs::read_dir(path).unwrap() {
+            let entry = entry.unwrap();
+            let entry_path = entry.path();
+            if entry_path.is_dir() {
+                files.extend(gather_files(&entry_path));
+            } else {
+                let mut file_contents = Vec::new();
+                let mut file = File::open(entry_path).unwrap();
+                file.read_to_end(&mut file_contents).unwrap();
+                files.push(file_contents);
+            }
+        }
+    }
+
+    files
+}
+
+#[ignore]
+fn inspect_size_of_generated_files(file1: &str, file2: &str, chunk_size: usize) {
+    let (signature_size, delta_size) = compute_size_of_generated_files(file1, file2, chunk_size);
     let size_using_algorithm = signature_size + delta_size;
 
     let original_file_size = {
@@ -35,12 +83,12 @@ fn inspect_size_of_generated_files() {
     println!("**************************************");
 }
 
-fn compute_size_of_generated_files(file1: &str, file2: &str) -> (u64, u64) {
+fn compute_size_of_generated_files(file1: &str, file2: &str, chunk_size: usize) -> (u64, u64) {
     let file1_signature = format!("{file1}.signature");
     let file2_delta = format!("{file2}.delta");
 
-    run_signature_command(file1, &file1_signature);
-    run_delta_command(&file1_signature, file2, &file2_delta);
+    run_signature_command(file1, &file1_signature, chunk_size);
+    run_delta_command(&file1_signature, file2, &file2_delta, chunk_size);
 
     // Now we have created the files: `file1.signature` and `file2.delta`
     // In order for the algorithm to be efficient, we need that the combined size of those
@@ -185,7 +233,7 @@ fn generate_pair_of_random_files_for_testing(directory: &str, length: usize) -> 
 #[ignore]
 /// Generates a pair of small random files as input to rsync and validates the algorithm.
 fn test_pair_of_random_files() {
-    let test_directory = "tests/test_files/random/small";
+    let test_directory = "tests/integration_tests/test_files/random/small";
     let identifier_directory = generate_pair_of_random_files_for_testing(test_directory, 100);
 
     assert_reconstruction_is_correct_for_given_files(
@@ -199,7 +247,7 @@ fn test_pair_of_random_files() {
 /// Generates multiple pairs of small random files as input to rsync and validates the algorithm
 /// for each pair.
 fn test_multiple_pairs_of_random_files() {
-    let test_directory = "tests/test_files/random/small";
+    let test_directory = "tests/integration_tests/test_files/random/small";
     for _test_id in 0..15 {
         let identifier_directory = generate_pair_of_random_files_for_testing(test_directory, 100);
 
@@ -214,8 +262,8 @@ fn test_multiple_pairs_of_random_files() {
 #[ignore]
 /// Generates a pair of big random files as input to rsync and validates the algorithm.
 fn test_pair_of_big_random_files() {
-    let test_directory = "tests/test_files/random/big";
-    let identifier_directory = generate_pair_of_random_files_for_testing(test_directory, 100_000);
+    let test_directory = "tests/integration_tests/test_files/random/big";
+    let identifier_directory = generate_pair_of_random_files_for_testing(test_directory, 1_000_000);
 
     assert_reconstruction_is_correct_for_given_files(
         &format!("{identifier_directory}/file1"),
@@ -231,7 +279,7 @@ fn test_until_failure() {
     let mut counter = 0;
     println!("Successful test counter:");
     loop {
-        let test_directory = "tests/test_files/random/big";
+        let test_directory = "tests/integration_tests/test_files/random/big";
         let identifier_directory =
             generate_pair_of_random_files_for_testing(test_directory, 100_000);
 
@@ -286,5 +334,5 @@ fn test_files_inside_directory(directory_path: &str) {
 // For now we are ignoring this in the CI and will keep testing manually
 fn run_all_test_files() {
     // TODO: improve this code
-    test_files_inside_directory("tests/test_files");
+    test_files_inside_directory("tests/integration_tests/test_files");
 }
