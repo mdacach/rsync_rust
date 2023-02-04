@@ -125,7 +125,7 @@ fn generate_pair_of_random_files_for_testing(directory: &str, length: usize) -> 
 #[ignore]
 /// Generates a pair of small random files as input to rsync and validates the algorithm.
 fn test_pair_of_random_files() {
-    let test_directory = "tests/random/small";
+    let test_directory = "tests/test_files/random/small";
     let identifier_directory = generate_pair_of_random_files_for_testing(test_directory, 100);
 
     assert_reconstruction_is_correct_for_given_files(
@@ -139,7 +139,7 @@ fn test_pair_of_random_files() {
 /// Generates multiple pairs of small random files as input to rsync and validates the algorithm
 /// for each pair.
 fn test_multiple_pairs_of_random_files() {
-    let test_directory = "tests/random/small";
+    let test_directory = "tests/test_files/random/small";
     for _test_id in 0..15 {
         let identifier_directory = generate_pair_of_random_files_for_testing(test_directory, 100);
 
@@ -154,7 +154,7 @@ fn test_multiple_pairs_of_random_files() {
 #[ignore]
 /// Generates a pair of big random files as input to rsync and validates the algorithm.
 fn test_pair_of_big_random_files() {
-    let test_directory = "tests/random/big";
+    let test_directory = "tests/test_files/random/big";
     let identifier_directory = generate_pair_of_random_files_for_testing(test_directory, 100_000);
 
     assert_reconstruction_is_correct_for_given_files(
