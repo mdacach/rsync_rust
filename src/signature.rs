@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 type StrongHashType = u64;
 type RollingHashType = u64;
 
-#[derive(Serialize, Deserialize)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct FileSignature {
     pub strong_hashes: Vec<StrongHashType>,
     pub rolling_hashes: Vec<RollingHashType>,
@@ -17,7 +16,9 @@ pub struct FileSignature {
 
 impl From<FileSignature> for Bytes {
     fn from(value: FileSignature) -> Self {
-        serde_json::to_vec_pretty(&value).expect("Could not serialize FileSignature into JSON").into()
+        serde_json::to_vec_pretty(&value)
+            .expect("Could not serialize FileSignature into JSON")
+            .into()
     }
 }
 
@@ -29,7 +30,6 @@ impl From<Bytes> for FileSignature {
     }
 }
 
-
 pub fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
     let blocks = content.chunks(chunk_size);
     let strong_hashes = blocks.map(calculate_strong_hash).collect();
@@ -39,13 +39,16 @@ pub fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
     blocks.for_each(|block| {
         // TODO: change rolling hash to accept bytes
         // TODO: make this code better
-        let hasher = RollingHash::from_initial_string(&String::from_utf8(Vec::from(block)).unwrap());
+        let hasher =
+            RollingHash::from_initial_string(&String::from_utf8(Vec::from(block)).unwrap());
         let hash = hasher.get_current_hash();
         rolling_hashes.push(hash);
-    }
-    );
+    });
 
-    FileSignature { strong_hashes, rolling_hashes }
+    FileSignature {
+        strong_hashes,
+        rolling_hashes,
+    }
 }
 
 // Use the default hash is std for now

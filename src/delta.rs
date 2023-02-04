@@ -4,14 +4,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::signature::{calculate_strong_hash, FileSignature};
 
-#[derive(Debug, Eq, PartialEq)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Delta {
     pub(crate) content: Vec<Content>,
 }
 
-#[derive(Debug, Eq, PartialEq)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Content {
     BlockIndex(usize),
     ByteLiteral(u8),
@@ -19,7 +17,9 @@ pub enum Content {
 
 impl From<Delta> for Bytes {
     fn from(value: Delta) -> Self {
-        serde_json::to_vec_pretty(&value).expect("Could not serialize Delta into JSON").into()
+        serde_json::to_vec_pretty(&value)
+            .expect("Could not serialize Delta into JSON")
+            .into()
     }
 }
 
@@ -29,8 +29,11 @@ impl From<Bytes> for Delta {
     }
 }
 
-pub fn compute_delta_to_our_file(signature: FileSignature, our_file_bytes: Bytes, chunk_size: usize) -> Delta
-{
+pub fn compute_delta_to_our_file(
+    signature: FileSignature,
+    our_file_bytes: Bytes,
+    chunk_size: usize,
+) -> Delta {
     let rolling_hashes = {
         let bytes = our_file_bytes.clone();
         let mut rolling_hashes = Vec::new();
@@ -49,7 +52,6 @@ pub fn compute_delta_to_our_file(signature: FileSignature, our_file_bytes: Bytes
 
         rolling_hashes
     };
-
 
     let mut delta_content = Vec::new();
 
@@ -75,7 +77,9 @@ pub fn compute_delta_to_our_file(signature: FileSignature, our_file_bytes: Bytes
         // TODO: Optimize this run-time (we are naively checking each hash in theirs)
         // TODO: It may happen that the first position match is a rolling hash collision (which does not work)
         //       but there is another position that is a true positive. This code misses this second block for now
-        let found_this_block_at = their_rolling_hashes.iter().position(|&&x| block_rolling_hash == x);
+        let found_this_block_at = their_rolling_hashes
+            .iter()
+            .position(|&&x| block_rolling_hash == x);
         match found_this_block_at {
             Some(block_index) => {
                 // This is a potential match. The rolling hashes have matched, but it may be just a
@@ -106,9 +110,10 @@ pub fn compute_delta_to_our_file(signature: FileSignature, our_file_bytes: Bytes
         }
     }
 
-    Delta { content: delta_content }
+    Delta {
+        content: delta_content,
+    }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -118,7 +123,7 @@ mod tests {
 
     use super::*;
 
-// These tests establish that the general idea of the algorithm is working:
+    // These tests establish that the general idea of the algorithm is working:
     // 1 - We are referencing blocks on matching chunks
     // 2 - We are sending byte literals otherwise
     // The actual specifics of correctness will be tested by integration tests.
@@ -197,8 +202,14 @@ mod tests {
         let file1_signature = compute_signature(file1, test_chunk_size);
         let delta = compute_delta_to_our_file(file1_signature, file2, test_chunk_size);
 
-        let byte_literals = delta.content.iter().filter(|x| matches!(x, Content::ByteLiteral(_)));
-        let block_indexes = delta.content.iter().filter(|x| matches!(x, Content::BlockIndex(_)));
+        let byte_literals = delta
+            .content
+            .iter()
+            .filter(|x| matches!(x, Content::ByteLiteral(_)));
+        let block_indexes = delta
+            .content
+            .iter()
+            .filter(|x| matches!(x, Content::BlockIndex(_)));
 
         assert!(byte_literals.count() > 0);
         assert!(block_indexes.count() > 0);

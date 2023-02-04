@@ -13,10 +13,7 @@ use rsync_rust::io_utils;
 fn generate_random_bytes(length: usize) -> Vec<u8> {
     let mut rng = thread_rng();
 
-    Alphanumeric
-        .sample_iter(&mut rng)
-        .take(length)
-        .collect()
+    Alphanumeric.sample_iter(&mut rng).take(length).collect()
 }
 
 // Adding linebreaks helps reading the generated files
@@ -29,7 +26,7 @@ fn generate_random_bytes_with_linebreaks(length: usize) -> Vec<u8> {
     for _ in 0..number_of_chunks {
         result.extend(generate_random_bytes(chunk_size));
         result.push(b'\n');
-    };
+    }
     result.extend(generate_random_bytes(last_chunk_size));
 
     result
@@ -37,10 +34,14 @@ fn generate_random_bytes_with_linebreaks(length: usize) -> Vec<u8> {
 
 fn assert_files_have_equal_content(desired_file: &str, recreated_file: &str) {
     let mut file1_contents = Vec::new();
-    let _ = File::open(desired_file).unwrap().read_to_end(&mut file1_contents);
+    let _ = File::open(desired_file)
+        .unwrap()
+        .read_to_end(&mut file1_contents);
 
     let mut file2_contents = Vec::new();
-    let _ = File::open(recreated_file).unwrap().read_to_end(&mut file2_contents);
+    let _ = File::open(recreated_file)
+        .unwrap()
+        .read_to_end(&mut file2_contents);
 
     assert_eq!(file1_contents, file2_contents);
 }
@@ -120,7 +121,6 @@ fn generate_pair_of_random_files_for_testing(directory: &str, length: usize) -> 
     directory_path
 }
 
-
 #[test]
 #[ignore]
 /// Generates a pair of small random files as input to rsync and validates the algorithm.
@@ -128,7 +128,10 @@ fn test_pair_of_random_files() {
     let test_directory = "tests/random/small";
     let identifier_directory = generate_pair_of_random_files_for_testing(test_directory, 100);
 
-    assert_reconstruction_is_correct_for_given_files(&format!("{identifier_directory}/file1"), &format!("{identifier_directory}/file2"));
+    assert_reconstruction_is_correct_for_given_files(
+        &format!("{identifier_directory}/file1"),
+        &format!("{identifier_directory}/file2"),
+    );
 }
 
 #[test]
@@ -140,10 +143,12 @@ fn test_multiple_pairs_of_random_files() {
     for _test_id in 0..15 {
         let identifier_directory = generate_pair_of_random_files_for_testing(test_directory, 100);
 
-        assert_reconstruction_is_correct_for_given_files(&format!("{identifier_directory}/file1"), &format!("{identifier_directory}/file2"));
+        assert_reconstruction_is_correct_for_given_files(
+            &format!("{identifier_directory}/file1"),
+            &format!("{identifier_directory}/file2"),
+        );
     }
 }
-
 
 #[test]
 #[ignore]
@@ -152,7 +157,10 @@ fn test_pair_of_big_random_files() {
     let test_directory = "tests/random/big";
     let identifier_directory = generate_pair_of_random_files_for_testing(test_directory, 100_000);
 
-    assert_reconstruction_is_correct_for_given_files(&format!("{identifier_directory}/file1"), &format!("{identifier_directory}/file2"));
+    assert_reconstruction_is_correct_for_given_files(
+        &format!("{identifier_directory}/file1"),
+        &format!("{identifier_directory}/file2"),
+    );
 }
 
 // Test directories can contain
@@ -161,8 +169,12 @@ fn test_pair_of_big_random_files() {
 // But not both. This way we can differentiate a directory which should be tested (because it has files)
 // or that just needs to be traversed.
 fn test_files_inside_directory(directory_path: &str) {
-    let entries: Vec<_> = fs::read_dir(directory_path).expect("Could not read directory path").collect();
-    let nested_directories = entries.iter().filter(|p| p.as_ref().unwrap().path().is_dir());
+    let entries: Vec<_> = fs::read_dir(directory_path)
+        .expect("Could not read directory path")
+        .collect();
+    let nested_directories = entries
+        .iter()
+        .filter(|p| p.as_ref().unwrap().path().is_dir());
 
     let has_only_nested_directories = nested_directories.count() > 0;
     if has_only_nested_directories {
@@ -172,7 +184,10 @@ fn test_files_inside_directory(directory_path: &str) {
         }
     } else {
         // This is already just a test directory
-        assert_reconstruction_is_correct_for_given_files(&format!("{directory_path}/file1"), &format!("{directory_path}/file2"));
+        assert_reconstruction_is_correct_for_given_files(
+            &format!("{directory_path}/file1"),
+            &format!("{directory_path}/file2"),
+        );
     }
 }
 

@@ -42,10 +42,35 @@ fn main() {
     let global_chunk_size = 10;
 
     match args.command {
-        Commands::Signature { filename, output_filename } => { handle_signature_command(filename, output_filename, global_chunk_size); }
-        Commands::Delta { signature_filename, our_file_filename, delta_filename } => { handle_delta_command(signature_filename, our_file_filename, delta_filename, global_chunk_size); }
-        Commands::Patch { basis_filename, delta_filename, recreated_filename } => {
-            handle_patch_command(basis_filename, delta_filename, recreated_filename, global_chunk_size);
+        Commands::Signature {
+            filename,
+            output_filename,
+        } => {
+            handle_signature_command(filename, output_filename, global_chunk_size);
+        }
+        Commands::Delta {
+            signature_filename,
+            our_file_filename,
+            delta_filename,
+        } => {
+            handle_delta_command(
+                signature_filename,
+                our_file_filename,
+                delta_filename,
+                global_chunk_size,
+            );
+        }
+        Commands::Patch {
+            basis_filename,
+            delta_filename,
+            recreated_filename,
+        } => {
+            handle_patch_command(
+                basis_filename,
+                delta_filename,
+                recreated_filename,
+                global_chunk_size,
+            );
         }
     }
 }
@@ -55,24 +80,35 @@ fn handle_signature_command(filename: String, output_filename: String, chunk_siz
         Ok(file_bytes) => {
             let signature = compute_signature(file_bytes, chunk_size);
 
-            io_utils::write_to_file(output_filename, signature.into()).wrap_err("Unable to write to file").unwrap();
+            io_utils::write_to_file(output_filename, signature.into())
+                .wrap_err("Unable to write to file")
+                .unwrap();
         }
         Err(error) => {
-            println!("Unable to read file: {filename}\n\
+            println!(
+                "Unable to read file: {filename}\n\
                           Are you sure the path provided is correct?\n\
-                          Error: {error}");
+                          Error: {error}"
+            );
             exit(1);
         }
     }
 }
 
-fn handle_delta_command(signature_filename: String, our_file_filename: String, delta_filename: String, chunk_size: usize) {
+fn handle_delta_command(
+    signature_filename: String,
+    our_file_filename: String,
+    delta_filename: String,
+    chunk_size: usize,
+) {
     let signature_file_bytes = match io_utils::read_file(signature_filename.clone()) {
         Ok(bytes) => bytes,
         Err(error) => {
-            println!("Unable to read file: {signature_filename}\n\
+            println!(
+                "Unable to read file: {signature_filename}\n\
                           Are you sure the path provided is correct?\n\
-                          Error: {error}");
+                          Error: {error}"
+            );
             exit(1);
         }
     };
@@ -80,24 +116,35 @@ fn handle_delta_command(signature_filename: String, our_file_filename: String, d
     let our_file_bytes = match io_utils::read_file(our_file_filename.clone()) {
         Ok(bytes) => bytes,
         Err(error) => {
-            println!("Unable to read file: {our_file_filename}\n\
+            println!(
+                "Unable to read file: {our_file_filename}\n\
                           Are you sure the path provided is correct?\n\
-                          Error: {error}");
+                          Error: {error}"
+            );
             exit(1);
         }
     };
 
     let delta = compute_delta_to_our_file(signature_file_bytes.into(), our_file_bytes, chunk_size);
-    io_utils::write_to_file(delta_filename, delta.into()).wrap_err("Unable to write to file").unwrap();
+    io_utils::write_to_file(delta_filename, delta.into())
+        .wrap_err("Unable to write to file")
+        .unwrap();
 }
 
-fn handle_patch_command(basis_filename: String, delta_filename: String, recreated_filename: String, chunk_size: usize) {
+fn handle_patch_command(
+    basis_filename: String,
+    delta_filename: String,
+    recreated_filename: String,
+    chunk_size: usize,
+) {
     let basis_file_bytes = match io_utils::read_file(basis_filename.clone()) {
         Ok(bytes) => bytes,
         Err(error) => {
-            println!("Unable to read file: {basis_filename}\n\
+            println!(
+                "Unable to read file: {basis_filename}\n\
                           Are you sure the path provided is correct?\n\
-                          Error: {error}");
+                          Error: {error}"
+            );
             exit(1);
         }
     };
@@ -105,14 +152,18 @@ fn handle_patch_command(basis_filename: String, delta_filename: String, recreate
     let delta_file_bytes = match io_utils::read_file(delta_filename.clone()) {
         Ok(bytes) => bytes,
         Err(error) => {
-            println!("Unable to read file: {delta_filename}\n\
+            println!(
+                "Unable to read file: {delta_filename}\n\
                           Are you sure the path provided is correct?\n\
-                          Error: {error}");
+                          Error: {error}"
+            );
             exit(1);
         }
     };
 
     let delta: Delta = delta_file_bytes.into();
     let recreated = apply_delta(basis_file_bytes, delta, chunk_size);
-    io_utils::write_to_file(recreated_filename, recreated).wrap_err("Unable to write to file").unwrap();
+    io_utils::write_to_file(recreated_filename, recreated)
+        .wrap_err("Unable to write to file")
+        .unwrap();
 }

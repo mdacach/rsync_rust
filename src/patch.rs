@@ -48,7 +48,14 @@ mod tests {
         let test_chunk_size = 7;
 
         let basis_file = Bytes::from("block1 block2 block3 ");
-        let delta = Delta { content: vec![Content::BlockIndex(1), Content::BlockIndex(2), Content::BlockIndex(1), Content::BlockIndex(0)] };
+        let delta = Delta {
+            content: vec![
+                Content::BlockIndex(1),
+                Content::BlockIndex(2),
+                Content::BlockIndex(1),
+                Content::BlockIndex(0),
+            ],
+        };
 
         let reconstructed = apply_delta(basis_file, delta, test_chunk_size);
 
@@ -74,4 +81,3 @@ mod tests {
         assert_eq!(reconstructed, Bytes::from("abcblock1 abc"));
     }
 }
-
