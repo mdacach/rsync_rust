@@ -10,6 +10,53 @@ use rand::prelude::*;
 
 use rsync_rust::io_utils;
 
+#[test]
+#[ignore]
+fn inspect_size_of_generated_files() {
+    let file1 = "tests/test_files/equal_files/file1";
+    let file2 = "tests/test_files/equal_files/file2";
+
+    let (signature_size, delta_size) = compute_size_of_generated_files(file1, file2);
+    let size_using_algorithm = signature_size + delta_size;
+
+    let original_file_size = {
+        let original_file_metadata = fs::metadata(file2).expect("Could not read metadata of file2");
+        original_file_metadata.len()
+    };
+
+    println!("File1 -> File2");
+    println!("**************************************");
+    println!("[file2 size]: {original_file_size}");
+    println!("[signature size]: {signature_size}");
+    println!("[delta size]: {delta_size}");
+    println!("**************************************");
+    println!("Sending the file directly [file2 size]: {original_file_size} bytes");
+    println!("Using the algorithm [signature + delta size]: {size_using_algorithm} bytes");
+    println!("**************************************");
+}
+
+fn compute_size_of_generated_files(file1: &str, file2: &str) -> (u64, u64) {
+    let file1_signature = format!("{file1}.signature");
+    let file2_delta = format!("{file2}.delta");
+
+    run_signature_command(file1, &file1_signature);
+    run_delta_command(&file1_signature, file2, &file2_delta);
+
+    // Now we have created the files: `file1.signature` and `file2.delta`
+    // In order for the algorithm to be efficient, we need that the combined size of those
+    // two files to be smaller than the size of `file2`
+    // (otherwise we would be better off sending the file directly)
+
+    let signature_file = format!("{file1}.signature");
+    let delta_file = format!("{file2}.delta");
+    let signature_metadata = fs::metadata(&signature_file)
+        .unwrap_or_else(|_| panic!("Could not read metadata of {}", &signature_file));
+    let delta_metadata = fs::metadata(&delta_file)
+        .unwrap_or_else(|_| panic!("Could not read metadata of {}", &delta_file));
+
+    (signature_metadata.len(), delta_metadata.len())
+}
+
 fn generate_random_bytes(length: usize) -> Vec<u8> {
     let mut rng = thread_rng();
 
