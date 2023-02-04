@@ -36,21 +36,28 @@ pub fn compute_delta_to_our_file(
 ) -> Delta {
     let rolling_hashes = {
         let bytes = our_file_bytes.clone();
-        let mut rolling_hashes = Vec::new();
 
-        let mut windows_iter = bytes.windows(chunk_size);
-        let first_string = String::from_utf8_lossy(windows_iter.next().unwrap());
-        let mut hasher = RollingHash::from_initial_string(&first_string);
-        rolling_hashes.push(hasher.get_current_hash());
+        if chunk_size <= our_file_bytes.len() {
+            // We will have a rolling hash for each sliding block
+            let mut rolling_hashes = Vec::new();
 
-        // we do not need windows here, just iterate one-by-one after the initial one
-        windows_iter.for_each(|window| {
-            hasher.pop_front();
-            hasher.push_back(*window.last().unwrap() as char);
+            let mut windows_iter = bytes.windows(chunk_size);
+            let first_string = String::from_utf8_lossy(windows_iter.next().unwrap());
+            let mut hasher = RollingHash::from_initial_string(&first_string);
             rolling_hashes.push(hasher.get_current_hash());
-        });
 
-        rolling_hashes
+            // we do not need windows here, just iterate one-by-one after the initial one
+            windows_iter.for_each(|window| {
+                hasher.pop_front();
+                hasher.push_back(*window.last().unwrap() as char);
+                rolling_hashes.push(hasher.get_current_hash());
+            });
+
+            rolling_hashes
+        } else {
+            // We do not have enough bytes to construct a block
+            Vec::new()
+        }
     };
 
     let mut delta_content = Vec::new();
@@ -213,5 +220,24 @@ mod tests {
 
         assert!(byte_literals.count() > 0);
         assert!(block_indexes.count() > 0);
+    }
+
+    #[test]
+    fn chunk_size_bigger_means_only_literals() {
+        let test_chunk_size = 100;
+
+        // We should have two matching chunks: "ABC" and "EF ".
+        let file1 = Bytes::from("ZY ABCDEF ");
+        let file2 = Bytes::from("ABCDxEF Z");
+
+        let file1_signature = compute_signature(file1, test_chunk_size);
+        let delta = compute_delta_to_our_file(file1_signature, file2, test_chunk_size);
+
+        let block_indexes = delta
+            .content
+            .iter()
+            .filter(|x| matches!(x, Content::BlockIndex(_)));
+
+        assert_eq!(block_indexes.count(), 0);
     }
 }

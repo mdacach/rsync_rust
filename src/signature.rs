@@ -95,4 +95,16 @@ mod tests {
 
         assert_ne!(file1_signature, file2_signature);
     }
+
+    #[test]
+    fn chunk_size_too_big_means_only_one_block() {
+        let test_chunk_size = 100;
+
+        let file = Bytes::from("ABCDEFGH");
+
+        let file_signature = compute_signature(file, test_chunk_size);
+
+        assert_eq!(file_signature.rolling_hashes.len(), 1);
+        assert_eq!(file_signature.strong_hashes.len(), 1);
+    }
 }
