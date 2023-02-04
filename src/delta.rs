@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bytes::Bytes;
 use rolling_hash_rust::RollingHash;
 use serde::{Deserialize, Serialize};
@@ -62,7 +64,19 @@ pub fn compute_delta_to_our_file(
 
     let mut delta_content = Vec::new();
 
-    let their_rolling_hashes: Vec<_> = signature.rolling_hashes.iter().collect();
+    // Rolling Hash -> Block Index in their file
+    let their_rolling_hashes = {
+        let mut map = HashMap::new();
+        signature
+            .rolling_hashes
+            .iter()
+            .enumerate()
+            .for_each(|(index, hash)| {
+                map.insert(hash, index);
+            });
+        map
+    };
+
     // We have one rolling hash for each potential block
     let mut index = 0;
     let our_file_size = our_file_bytes.len();
@@ -71,24 +85,18 @@ pub fn compute_delta_to_our_file(
 
         let end_of_this_block = index + chunk_size - 1; // inclusive
         if end_of_this_block >= our_file_size {
-            // This is part of a trailling chunk, which shall be sent directly
+            // This is part of a trailing chunk, which shall be sent directly
             // as ByteLiteral
             delta_content.push(Content::ByteLiteral(block_starting_byte));
             index += 1;
             continue;
         }
 
-        // Otherwise, we may trie to match this block
+        // Otherwise, we may try to match this block
         let block_rolling_hash = rolling_hashes[index];
 
-        // TODO: Optimize this run-time (we are naively checking each hash in theirs)
-        // TODO: It may happen that the first position match is a rolling hash collision (which does not work)
-        //       but there is another position that is a true positive. This code misses this second block for now
-        let found_this_block_at = their_rolling_hashes
-            .iter()
-            .position(|&&x| block_rolling_hash == x);
-        match found_this_block_at {
-            Some(block_index) => {
+        match their_rolling_hashes.get(&block_rolling_hash) {
+            Some(&block_index) => {
                 // This is a potential match. The rolling hashes have matched, but it may be just a
                 // hash collision.
 
@@ -111,6 +119,7 @@ pub fn compute_delta_to_our_file(
                 }
             }
             None => {
+                // No blocks match the rolling hash. The best we can do is to send the byte directly.
                 delta_content.push(Content::ByteLiteral(block_starting_byte));
                 index += 1;
             }
