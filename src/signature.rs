@@ -16,8 +16,8 @@ pub struct FileSignature {
 
 impl From<FileSignature> for Bytes {
     fn from(value: FileSignature) -> Self {
-        serde_json::to_vec_pretty(&value)
-            .expect("Could not serialize FileSignature into JSON")
+        rmp_serde::to_vec(&value)
+            .expect("Could not serialize FileSignature into Bytes")
             .into()
     }
 }
@@ -26,7 +26,7 @@ impl From<FileSignature> for Bytes {
 // I am using From<Bytes> based on usage I have seen of FromStr, instead of TryFrom<str>
 impl From<Bytes> for FileSignature {
     fn from(bytes: Bytes) -> Self {
-        serde_json::from_slice(&bytes).expect("Could not deserialize Bytes into FileSignature")
+        rmp_serde::from_slice(&bytes).expect("Could not deserialize Bytes into FileSignature")
     }
 }
 

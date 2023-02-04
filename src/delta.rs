@@ -17,15 +17,15 @@ pub enum Content {
 
 impl From<Delta> for Bytes {
     fn from(value: Delta) -> Self {
-        serde_json::to_vec_pretty(&value)
-            .expect("Could not serialize Delta into JSON")
+        rmp_serde::to_vec(&value)
+            .expect("Could not serialize Delta into Bytes")
             .into()
     }
 }
 
 impl From<Bytes> for Delta {
     fn from(value: Bytes) -> Delta {
-        serde_json::from_slice(&value).expect("Could not deserialize Delta from JSON")
+        rmp_serde::from_slice(&value).expect("Could not deserialize Delta from Bytes")
     }
 }
 
