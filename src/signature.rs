@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 type StrongHashType = u64;
 type RollingHashType = u64;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct FileSignature {
     pub strong_hashes: Vec<StrongHashType>,
     pub rolling_hashes: Vec<RollingHashType>,
