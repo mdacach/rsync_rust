@@ -20,16 +20,22 @@ enum Commands {
     Signature {
         filename: String,
         output_filename: String,
+        #[arg(short, long, default_value_t = 10)]
+        chunk_size: usize,
     },
     Delta {
         signature_filename: String,
         our_file_filename: String,
         delta_filename: String,
+        #[arg(short, long, default_value_t = 10)]
+        chunk_size: usize,
     },
     Patch {
         basis_filename: String,
         delta_filename: String,
         recreated_filename: String,
+        #[arg(short, long, default_value_t = 10)]
+        chunk_size: usize,
     },
 }
 
@@ -38,38 +44,38 @@ fn main() {
 
     let args = Arguments::parse();
 
-    // TODO: this will be changed to be either provided by the caller or read from a config file
-    let global_chunk_size = 10;
-
     match args.command {
         Commands::Signature {
             filename,
             output_filename,
+            chunk_size,
         } => {
-            handle_signature_command(filename, output_filename, global_chunk_size);
+            handle_signature_command(filename, output_filename, chunk_size);
         }
         Commands::Delta {
             signature_filename,
             our_file_filename,
             delta_filename,
+            chunk_size,
         } => {
             handle_delta_command(
                 signature_filename,
                 our_file_filename,
                 delta_filename,
-                global_chunk_size,
+                chunk_size,
             );
         }
         Commands::Patch {
             basis_filename,
             delta_filename,
             recreated_filename,
+            chunk_size,
         } => {
             handle_patch_command(
                 basis_filename,
                 delta_filename,
                 recreated_filename,
-                global_chunk_size,
+                chunk_size,
             );
         }
     }

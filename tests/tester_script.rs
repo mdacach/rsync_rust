@@ -93,35 +93,48 @@ fn assert_files_have_equal_content(desired_file: &str, recreated_file: &str) {
     assert_eq!(file1_contents, file2_contents);
 }
 
-fn run_signature_command(filename: &str, output_filename: &str) {
+fn run_signature_command(filename: &str, output_filename: &str, chunk_size: usize) {
     Command::new("target/release/rsync_rust")
         .arg("signature")
         .arg(filename)
         .arg(output_filename)
+        .args(["-c", &chunk_size.to_string()])
         .spawn()
         .expect("failed to spawn child process")
         .wait()
         .expect("failed to wait on child");
 }
 
-fn run_delta_command(signature_filename: &str, our_filename: &str, delta_filename: &str) {
+fn run_delta_command(
+    signature_filename: &str,
+    our_filename: &str,
+    delta_filename: &str,
+    chunk_size: usize,
+) {
     Command::new("target/release/rsync_rust")
         .arg("delta")
         .arg(signature_filename)
         .arg(our_filename)
         .arg(delta_filename)
+        .args(["-c", &chunk_size.to_string()])
         .spawn()
         .expect("failed to spawn child process")
         .wait()
         .expect("failed to wait on child");
 }
 
-fn run_patch_command(basis_filename: &str, delta_filename: &str, recreated_filename: &str) {
+fn run_patch_command(
+    basis_filename: &str,
+    delta_filename: &str,
+    recreated_filename: &str,
+    chunk_size: usize,
+) {
     Command::new("target/release/rsync_rust")
         .arg("patch")
         .arg(basis_filename)
         .arg(delta_filename)
         .arg(recreated_filename)
+        .args(["-c", &chunk_size.to_string()])
         .spawn()
         .expect("failed to spawn child process")
         .wait()
@@ -143,9 +156,9 @@ fn assert_reconstruction_is_correct_for_given_files(file1: &str, file2: &str) {
         None => "recreated_file".to_string(),
     };
 
-    run_signature_command(file1, &file1_signature);
-    run_delta_command(&file1_signature, file2, &file2_delta);
-    run_patch_command(file1, &file2_delta, &recreated_file);
+    run_signature_command(file1, &file1_signature, 10);
+    run_delta_command(&file1_signature, file2, &file2_delta, 10);
+    run_patch_command(file1, &file2_delta, &recreated_file, 10);
 
     assert_files_have_equal_content(file2, &recreated_file);
 }
