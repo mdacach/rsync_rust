@@ -163,6 +163,33 @@ fn test_pair_of_big_random_files() {
     );
 }
 
+#[test]
+#[ignore]
+// If all is well, this will take a `really` long time to find a failure.
+// I have ran it for more than 15000 iterations with no failure
+fn test_until_failure() {
+    let mut counter = 0;
+    println!("Successful test counter:");
+    loop {
+        let test_directory = "tests/test_files/random/big";
+        let identifier_directory =
+            generate_pair_of_random_files_for_testing(test_directory, 100_000);
+
+        assert_reconstruction_is_correct_for_given_files(
+            &format!("{identifier_directory}/file1"),
+            &format!("{identifier_directory}/file2"),
+        );
+
+        // Delete the files we have just created, otherwise we will use a lot of memory.
+        fs::remove_dir_all(identifier_directory).unwrap();
+
+        counter += 1;
+        if counter % 50 == 0 {
+            println!("- {counter}")
+        }
+    }
+}
+
 // Test directories can contain
 // 1 - One set of files for testing (specifically file1 and file2)
 // 2 - Nested directories
