@@ -10,12 +10,12 @@ use crate::signature::{calculate_strong_hash, FileSignature};
 ///
 /// The updated file can be reconstructed by reusing some of the basis file blocks
 /// (through a BlockIndex), or by writing (new) byte literals.
-#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Delta {
     pub(crate) content: Vec<Token>,
 }
 
-#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
 pub enum Token {
     BlockIndex(usize),
     // A reference to a block within the basis file.
