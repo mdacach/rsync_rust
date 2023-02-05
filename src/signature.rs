@@ -8,12 +8,22 @@ use serde::{Deserialize, Serialize};
 type StrongHashType = u64;
 type RollingHashType = u64;
 
+/// Represents the contents of a File
+///
+/// A file is divided into blocks of `chunk_size` bytes.
+/// For each block, we represent it with two hashes.
+/// The rolling hash is fast to compute, but weak.
+/// The strong hash is a more computationally expensive, but stronger hash.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct FileSignature {
+    // We will generally be accessing `rolling_hashes` together, so it's better if they are
+    // closely packed. (As opposed to a single Vec<(strong_hash, rolling_hash)>.
+    // SoA vs AoS: https://en.wikipedia.org/wiki/AoS_and_SoA
     pub strong_hashes: Vec<StrongHashType>,
     pub rolling_hashes: Vec<RollingHashType>,
 }
 
+// We are using `rmp_serde` as a efficient binary format to save the files in.
 impl From<FileSignature> for Bytes {
     fn from(value: FileSignature) -> Self {
         rmp_serde::to_vec(&value)
@@ -30,6 +40,15 @@ impl From<Bytes> for FileSignature {
     }
 }
 
+/// Computes a FileSignature for the content of a file.
+///
+/// The file is split into equally-sized blocks (or possibly a smaller last block)
+/// and each block is represented by two hashes.
+///
+/// # Arguments
+/// * `content` - A Bytes structure which holds the content of the file.
+/// * `chunk_size` - The size for each block.
+///
 pub fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
     let blocks = content.chunks(chunk_size);
     let strong_hashes = blocks.map(calculate_strong_hash).collect();
@@ -50,7 +69,11 @@ pub fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
     }
 }
 
-// Use the default hash is std for now
+/// Computes a strong hash for a slice of bytes.
+///
+/// # Arguments
+/// * `content` - Bytes to hash.
+///
 pub fn calculate_strong_hash(content: &[u8]) -> StrongHashType {
     let mut s = DefaultHasher::new();
     content.hash(&mut s);
