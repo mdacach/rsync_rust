@@ -1,16 +1,16 @@
 use bytes::Bytes;
 
-use crate::delta::{Content, Delta};
+use crate::delta::{Delta, Token};
 
 pub fn apply_delta(basis_file: Bytes, delta: Delta, chunk_size: usize) -> Bytes {
     let blocks: Vec<_> = basis_file.chunks(chunk_size).collect();
     let mut reconstructed = Vec::new();
 
     delta.content.iter().for_each(|c| match c {
-        Content::BlockIndex(index) => {
+        Token::BlockIndex(index) => {
             reconstructed.extend(blocks.get(*index).unwrap().to_vec());
         }
-        Content::ByteLiteral(byte) => reconstructed.push(*byte),
+        Token::ByteLiteral(byte) => reconstructed.push(*byte),
     });
 
     Bytes::from(reconstructed)
@@ -18,12 +18,12 @@ pub fn apply_delta(basis_file: Bytes, delta: Delta, chunk_size: usize) -> Bytes 
 
 #[cfg(test)]
 mod tests {
-    use crate::delta::{Content, Delta};
+    use crate::delta::{Delta, Token};
 
     use super::*;
 
-    fn create_byte_literals(bytes: &[u8]) -> Vec<Content> {
-        bytes.iter().copied().map(Content::ByteLiteral).collect()
+    fn create_byte_literals(bytes: &[u8]) -> Vec<Token> {
+        bytes.iter().copied().map(Token::ByteLiteral).collect()
     }
 
     #[test]
@@ -50,10 +50,10 @@ mod tests {
         let basis_file = Bytes::from("block1 block2 block3 ");
         let delta = Delta {
             content: vec![
-                Content::BlockIndex(1),
-                Content::BlockIndex(2),
-                Content::BlockIndex(1),
-                Content::BlockIndex(0),
+                Token::BlockIndex(1),
+                Token::BlockIndex(2),
+                Token::BlockIndex(1),
+                Token::BlockIndex(0),
             ],
         };
 
@@ -71,7 +71,7 @@ mod tests {
         let delta = {
             let mut content = Vec::new();
             content.extend(create_byte_literals(b"abc"));
-            content.push(Content::BlockIndex(0));
+            content.push(Token::BlockIndex(0));
             content.extend(create_byte_literals(b"abc"));
             Delta { content }
         };

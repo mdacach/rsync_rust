@@ -8,11 +8,11 @@ use crate::signature::{calculate_strong_hash, FileSignature};
 
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Delta {
-    pub(crate) content: Vec<Content>,
+    pub(crate) content: Vec<Token>,
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub enum Content {
+pub enum Token {
     BlockIndex(usize),
     ByteLiteral(u8),
 }
@@ -87,7 +87,7 @@ pub fn compute_delta_to_our_file(
         if end_of_this_block >= our_file_size {
             // This is part of a trailing chunk, which shall be sent directly
             // as ByteLiteral
-            delta_content.push(Content::ByteLiteral(block_starting_byte));
+            delta_content.push(Token::ByteLiteral(block_starting_byte));
             index += 1;
             continue;
         }
@@ -109,18 +109,18 @@ pub fn compute_delta_to_our_file(
 
                 if block_strong_hash == their_strong_hash {
                     // We are confident it is a match.
-                    delta_content.push(Content::BlockIndex(block_index));
+                    delta_content.push(Token::BlockIndex(block_index));
                     // All this block is already accounted for
                     index += chunk_size;
                 } else {
                     // It was just a hash collision on the rolling hashes. Dodged a bullet here!
-                    delta_content.push(Content::ByteLiteral(block_starting_byte));
+                    delta_content.push(Token::ByteLiteral(block_starting_byte));
                     index += 1;
                 }
             }
             None => {
                 // No blocks match the rolling hash. The best we can do is to send the byte directly.
-                delta_content.push(Content::ByteLiteral(block_starting_byte));
+                delta_content.push(Token::ByteLiteral(block_starting_byte));
                 index += 1;
             }
         }
@@ -161,7 +161,7 @@ mod tests {
 
         // Delta is all BlockIndexes.
         for c in delta.content {
-            assert!(matches!(c, Content::BlockIndex(_)));
+            assert!(matches!(c, Token::BlockIndex(_)));
         }
     }
 
@@ -181,13 +181,13 @@ mod tests {
         // 2 BlockIndex (for the first two chunks).
         let block_indexes = &delta.content[0..2];
         for b in block_indexes {
-            assert!(matches!(b, Content::BlockIndex(_)));
+            assert!(matches!(b, Token::BlockIndex(_)));
         }
 
         // 2 ByteLiterals (for the leftover chunk).
         let byte_literals = &delta.content[2..];
         for b in byte_literals {
-            assert!(matches!(b, Content::ByteLiteral(_)));
+            assert!(matches!(b, Token::ByteLiteral(_)));
         }
     }
 
@@ -203,7 +203,7 @@ mod tests {
         let delta = compute_delta_to_our_file(file1_signature, file2, test_chunk_size);
 
         for b in delta.content {
-            assert!(matches!(b, Content::ByteLiteral(_)));
+            assert!(matches!(b, Token::ByteLiteral(_)));
         }
     }
 
@@ -221,11 +221,11 @@ mod tests {
         let byte_literals = delta
             .content
             .iter()
-            .filter(|x| matches!(x, Content::ByteLiteral(_)));
+            .filter(|x| matches!(x, Token::ByteLiteral(_)));
         let block_indexes = delta
             .content
             .iter()
-            .filter(|x| matches!(x, Content::BlockIndex(_)));
+            .filter(|x| matches!(x, Token::BlockIndex(_)));
 
         assert!(byte_literals.count() > 0);
         assert!(block_indexes.count() > 0);
@@ -245,7 +245,7 @@ mod tests {
         let block_indexes = delta
             .content
             .iter()
-            .filter(|x| matches!(x, Content::BlockIndex(_)));
+            .filter(|x| matches!(x, Token::BlockIndex(_)));
 
         assert_eq!(block_indexes.count(), 0);
     }
