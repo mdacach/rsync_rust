@@ -2,14 +2,27 @@ use bytes::Bytes;
 
 use crate::delta::{Delta, Token};
 
+/// Applies a Delta to a basis file.
+///
+/// Applies the changes specified by the Delta to the basis file. At the end of the process,
+/// we will have reconstructed a new file which is equal to the updated one, and returns its
+/// content in bytes.
+///
+/// # Arguments
+/// * `basis_file` - The file to be changed (not in-place).
+/// * `delta` - Delta representing the changes from the `basis_file` to the updated one.
+/// * `chunk_size` - The size for each block used in the Signature, and in the Delta.
+///
 pub fn apply_delta(basis_file: Bytes, delta: Delta, chunk_size: usize) -> Bytes {
     let blocks: Vec<_> = basis_file.chunks(chunk_size).collect();
     let mut reconstructed = Vec::new();
 
     delta.content.iter().for_each(|c| match c {
         Token::BlockIndex(index) => {
+            // We can reuse a block from our file. Nice!
             reconstructed.extend(blocks.get(*index).unwrap().to_vec());
         }
+        // This is a new byte, just write it directly.
         Token::ByteLiteral(byte) => reconstructed.push(*byte),
     });
 
