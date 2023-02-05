@@ -35,7 +35,7 @@
 //! We are sending smaller files through the network, but both User A and User B need to
 //! compute information based on that.
 
-use std::process::exit;
+use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::Context;
@@ -52,34 +52,33 @@ struct Arguments {
 }
 
 #[derive(Subcommand)]
-// TODO (Clap): Some way to use Path here instead of String?
-//              Investigate if possible to validate the file formats within Clap
+// TODO (Clap): Investigate if possible to validate the file formats within Clap
 //              e.g: `signature_filename` needs to be convertible to FileSignature
 enum Commands {
     Signature {
-        basis_filename: String,
+        basis_filename: PathBuf,
         // The basis file to compute Signature from.
-        signature_output_filename: String,
+        signature_output_filename: PathBuf,
         // Where to save the Signature file.
         #[arg(short, long, default_value_t = 10)]
         chunk_size: usize, // Size for each block.
     },
     Delta {
-        signature_filename: String,
+        signature_filename: PathBuf,
         // Signature file computed by `Signature` command.
-        updated_filename: String,
+        updated_filename: PathBuf,
         // File to compute `Delta` from `Signature`.
-        delta_filename: String,
+        delta_filename: PathBuf,
         // Where to save the `Delta` file.
         #[arg(short, long, default_value_t = 10)]
         chunk_size: usize, // Size for each block.
     },
     Patch {
-        basis_filename: String,
+        basis_filename: PathBuf,
         // File to apply changes.
-        delta_filename: String,
+        delta_filename: PathBuf,
         // Delta file computed by `Delta` command.
-        recreated_filename: String,
+        recreated_filename: PathBuf,
         // Where to save the updated file.
         #[arg(short, long, default_value_t = 10)]
         chunk_size: usize, // Size for each block.
@@ -130,98 +129,47 @@ fn main() {
 }
 
 fn handle_signature_command(
-    basis_filename: String,
-    signature_output_filename: String,
+    basis_filename: PathBuf,
+    signature_output_filename: PathBuf,
     chunk_size: usize,
 ) {
-    match io_utils::read_file(basis_filename.clone()) {
-        Ok(file_bytes) => {
-            let signature = compute_signature(file_bytes, chunk_size);
+    let basis_file_bytes = io_utils::attempt_to_read_file(basis_filename.clone());
+    let signature = compute_signature(basis_file_bytes, chunk_size);
 
-            io_utils::write_to_file(signature_output_filename, signature.into())
-                .wrap_err("Unable to write to file")
-                .unwrap();
-        }
-        Err(error) => {
-            println!(
-                "Unable to read file: {basis_filename}\n\
-                          Are you sure the path provided is correct?\n\
-                          Error: {error}"
-            );
-            exit(1);
-        }
-    }
+    io_utils::write_to_file(signature_output_filename, signature.into())
+        .wrap_err("Unable to write to file")
+        .unwrap();
 }
 
 fn handle_delta_command(
-    signature_filename: String,
-    updated_filename: String,
-    delta_filename: String,
+    signature_filename: PathBuf,
+    updated_filename: PathBuf,
+    delta_filename: PathBuf,
     chunk_size: usize,
 ) {
-    let signature_file_bytes = match io_utils::read_file(signature_filename.clone()) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            println!(
-                "Unable to read file: {signature_filename}\n\
-                          Are you sure the path provided is correct?\n\
-                          Error: {error}"
-            );
-            exit(1);
-        }
-    };
-
-    let updated_file_bytes = match io_utils::read_file(updated_filename.clone()) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            println!(
-                "Unable to read file: {updated_filename}\n\
-                          Are you sure the path provided is correct?\n\
-                          Error: {error}"
-            );
-            exit(1);
-        }
-    };
+    let signature_file_bytes = io_utils::attempt_to_read_file(signature_filename.clone());
+    let updated_file_bytes = io_utils::attempt_to_read_file(updated_filename.clone());
 
     let delta =
         compute_delta_to_our_file(signature_file_bytes.into(), updated_file_bytes, chunk_size);
+
     io_utils::write_to_file(delta_filename, delta.into())
         .wrap_err("Unable to write to file")
         .unwrap();
 }
 
 fn handle_patch_command(
-    basis_filename: String,
-    delta_filename: String,
-    recreated_filename: String,
+    basis_filename: PathBuf,
+    delta_filename: PathBuf,
+    recreated_filename: PathBuf,
     chunk_size: usize,
 ) {
-    let basis_file_bytes = match io_utils::read_file(basis_filename.clone()) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            println!(
-                "Unable to read file: {basis_filename}\n\
-                          Are you sure the path provided is correct?\n\
-                          Error: {error}"
-            );
-            exit(1);
-        }
-    };
-
-    let delta_file_bytes = match io_utils::read_file(delta_filename.clone()) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            println!(
-                "Unable to read file: {delta_filename}\n\
-                          Are you sure the path provided is correct?\n\
-                          Error: {error}"
-            );
-            exit(1);
-        }
-    };
+    let basis_file_bytes = io_utils::attempt_to_read_file(basis_filename.clone());
+    let delta_file_bytes = io_utils::attempt_to_read_file(delta_filename.clone());
 
     let delta: Delta = delta_file_bytes.into();
     let recreated = apply_delta(basis_file_bytes, delta, chunk_size);
+
     io_utils::write_to_file(recreated_filename, recreated)
         .wrap_err("Unable to write to file")
         .unwrap();

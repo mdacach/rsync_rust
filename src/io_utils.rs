@@ -5,10 +5,19 @@ use std::path::Path;
 
 use bytes::Bytes;
 
-pub fn read_file<P: AsRef<Path>>(path: P) -> color_eyre::Result<Bytes> {
-    let contents = fs::read(path)?;
-
-    Ok(Bytes::from(contents))
+pub fn attempt_to_read_file<P: AsRef<Path>>(path: P) -> Bytes {
+    match fs::read(&path) {
+        Ok(bytes) => bytes.into(),
+        Err(error) => {
+            panic!(
+                "Unable to read file: {}\n\
+                          Are you sure the path provided is correct?\n\
+                          Error: {}",
+                path.as_ref().display(),
+                error
+            );
+        }
+    }
 }
 
 pub fn write_to_file<P: AsRef<Path>>(path: P, content: Bytes) -> color_eyre::Result<()> {
