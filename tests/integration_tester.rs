@@ -1,7 +1,7 @@
 use std::fs;
 use std::fs::File;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use nanoid::nanoid;
@@ -9,101 +9,7 @@ use rand::distributions::Alphanumeric;
 use rand::prelude::*;
 
 use rsync_rust::io_utils;
-
-fn concat_vecs(vecs: &[Vec<u8>]) -> Vec<u8> {
-    let total_len = vecs.iter().map(|v| v.len()).sum();
-    let mut result = Vec::with_capacity(total_len);
-    for v in vecs {
-        result.extend_from_slice(v);
-    }
-    result
-}
-
-#[test]
-#[ignore]
-fn test_linux_kernel_source_code_similarity() {
-    // 84080 files
-    let linux_files_old = gather_files(Path::new("tests/linux_kernel_source_code/linux-6.1.8"));
-
-    let all_old = concat_vecs(&linux_files_old);
-    println!("old total size: {}", all_old.len());
-
-    // 84078 files
-    let linux_files_new = gather_files(Path::new("tests/linux_kernel_source_code/linux-6.1.9"));
-    let all_new = concat_vecs(&linux_files_new);
-    println!("new total size: {}", all_new.len());
-
-    io_utils::write_to_file("file1.tmp", all_old.into())
-        .expect("Could not write linux to single file");
-    io_utils::write_to_file("file2.tmp", all_new.into())
-        .expect("Could not write linux to single file");
-
-    inspect_size_of_generated_files("file1.tmp", "file2.tmp", 1_000_000);
-}
-
-fn gather_files(path: &Path) -> Vec<Vec<u8>> {
-    let mut files = Vec::new();
-
-    if path.is_dir() {
-        for entry in fs::read_dir(path).unwrap() {
-            let entry = entry.unwrap();
-            let entry_path = entry.path();
-            if entry_path.is_dir() {
-                files.extend(gather_files(&entry_path));
-            } else {
-                let mut file_contents = Vec::new();
-                let mut file = File::open(entry_path).unwrap();
-                file.read_to_end(&mut file_contents).unwrap();
-                files.push(file_contents);
-            }
-        }
-    }
-
-    files
-}
-
-#[ignore]
-fn inspect_size_of_generated_files(file1: &str, file2: &str, chunk_size: usize) {
-    let (signature_size, delta_size) = compute_size_of_generated_files(file1, file2, chunk_size);
-    let size_using_algorithm = signature_size + delta_size;
-
-    let original_file_size = {
-        let original_file_metadata = fs::metadata(file2).expect("Could not read metadata of file2");
-        original_file_metadata.len()
-    };
-
-    println!("File1 -> File2");
-    println!("**************************************");
-    println!("[file2 size]: {original_file_size}");
-    println!("[signature size]: {signature_size}");
-    println!("[delta size]: {delta_size}");
-    println!("**************************************");
-    println!("Sending the file directly [file2 size]: {original_file_size} bytes");
-    println!("Using the algorithm [signature + delta size]: {size_using_algorithm} bytes");
-    println!("**************************************");
-}
-
-fn compute_size_of_generated_files(file1: &str, file2: &str, chunk_size: usize) -> (u64, u64) {
-    let file1_signature = format!("{file1}.signature");
-    let file2_delta = format!("{file2}.delta");
-
-    run_signature_command(file1, &file1_signature, chunk_size);
-    run_delta_command(&file1_signature, file2, &file2_delta, chunk_size);
-
-    // Now we have created the files: `file1.signature` and `file2.delta`
-    // In order for the algorithm to be efficient, we need that the combined size of those
-    // two files to be smaller than the size of `file2`
-    // (otherwise we would be better off sending the file directly)
-
-    let signature_file = format!("{file1}.signature");
-    let delta_file = format!("{file2}.delta");
-    let signature_metadata = fs::metadata(&signature_file)
-        .unwrap_or_else(|_| panic!("Could not read metadata of {}", &signature_file));
-    let delta_metadata = fs::metadata(&delta_file)
-        .unwrap_or_else(|_| panic!("Could not read metadata of {}", &delta_file));
-
-    (signature_metadata.len(), delta_metadata.len())
-}
+use rsync_rust::test_utils::TestCase;
 
 fn generate_random_bytes(length: usize) -> Vec<u8> {
     let mut rng = thread_rng();
@@ -189,150 +95,195 @@ fn run_patch_command(
         .expect("failed to wait on child");
 }
 
-/// Asserts that supplying `file1` and `file2` to the algorithm behaves correctly.
-///
-/// The objective here is to transform file1 into file2 using signatures and deltas.
-/// In the end, the `recreated_file` must be exactly equal `file2`, otherwise we have
-/// lost information in the process.
-fn assert_reconstruction_is_correct_for_given_files(file1: &str, file2: &str) {
-    let file1_signature = format!("{file1}.signature");
-    let file2_delta = format!("{file2}.delta");
+fn assert_reconstruction_is_correct_for_test_case(test_case: &TestCase) {
+    let TestCase {
+        directory_path,
+        basis_file,
+        updated_file,
+    } = test_case;
 
-    let directory = Path::new(file1).parent();
-    let recreated_file = match directory {
-        Some(dir) => format!("{}/recreated_file", dir.to_str().expect("Not UTF-8 path")),
-        None => "recreated_file".to_string(),
-    };
+    let signature = format!("{}/signature", directory_path.display());
+    let delta = format!("{}/delta", directory_path.display());
 
-    run_signature_command(file1, &file1_signature, 10);
-    run_delta_command(&file1_signature, file2, &file2_delta, 10);
-    run_patch_command(file1, &file2_delta, &recreated_file, 10);
+    let recreated_file = format!("{}/recreated_file", directory_path.display());
 
-    assert_files_have_equal_content(file2, &recreated_file);
-}
+    // TODO: Make stuff accept Path instead of &str
+    run_signature_command(basis_file.to_str().unwrap(), &signature, 10);
+    run_delta_command(&signature, updated_file.to_str().unwrap(), &delta, 10);
+    run_patch_command(basis_file.to_str().unwrap(), &delta, &recreated_file, 10);
 
-fn generate_pair_of_random_files_for_testing(directory: &str, length: usize) -> String {
-    let file1 = generate_random_bytes_with_linebreaks(length);
-    let file2 = generate_random_bytes_with_linebreaks(length);
-
-    let identifier = nanoid!(5);
-
-    let directory_path = format!("{directory}/{identifier}");
-    fs::create_dir(&directory_path).expect("Could not create directory for random generated files");
-
-    let file1_path = format!("{directory_path}/file1");
-    let file2_path = format!("{directory_path}/file2");
-
-    io_utils::write_to_file(file1_path, file1.into()).expect("Could not write to file");
-    io_utils::write_to_file(file2_path, file2.into()).expect("Could not write to file");
-
-    directory_path
+    assert_files_have_equal_content(updated_file.to_str().unwrap(), &recreated_file);
 }
 
 #[test]
 #[ignore]
-/// Generates a pair of small random files as input to rsync and validates the algorithm.
-fn test_pair_of_random_files() {
-    let test_directory = "tests/integration_tests/test_files/random/small";
-    let identifier_directory = generate_pair_of_random_files_for_testing(test_directory, 100);
+fn create_5_test_cases() {
+    let files_directory = Path::new("tests/integration_tests/test_files");
+    for _ in 0..5 {
+        let identifier = nanoid!(5);
 
-    assert_reconstruction_is_correct_for_given_files(
-        &format!("{identifier_directory}/file1"),
-        &format!("{identifier_directory}/file2"),
-    );
-}
-
-#[test]
-#[ignore]
-/// Generates multiple pairs of small random files as input to rsync and validates the algorithm
-/// for each pair.
-fn test_multiple_pairs_of_random_files() {
-    let test_directory = "tests/integration_tests/test_files/random/small";
-    for _test_id in 0..15 {
-        let identifier_directory = generate_pair_of_random_files_for_testing(test_directory, 100);
-
-        assert_reconstruction_is_correct_for_given_files(
-            &format!("{identifier_directory}/file1"),
-            &format!("{identifier_directory}/file2"),
-        );
+        generate_test_case(&files_directory.join(Path::new(&identifier)), 1_000_000);
     }
 }
 
-#[test]
-#[ignore]
-/// Generates a pair of big random files as input to rsync and validates the algorithm.
-fn test_pair_of_big_random_files() {
-    let test_directory = "tests/integration_tests/test_files/random/big";
-    let identifier_directory = generate_pair_of_random_files_for_testing(test_directory, 1_000_000);
+fn generate_test_case(directory: &PathBuf, length: usize) -> TestCase {
+    let basis_file = generate_random_bytes_with_linebreaks(length);
+    let updated_file = generate_random_bytes_with_linebreaks(length);
 
-    assert_reconstruction_is_correct_for_given_files(
-        &format!("{identifier_directory}/file1"),
-        &format!("{identifier_directory}/file2"),
-    );
-}
+    fs::create_dir(directory).expect("Could not create directory");
 
-#[test]
-#[ignore]
-// If all is well, this will take a `really` long time to find a failure.
-// I have ran it for more than 15000 iterations with no failure
-fn test_until_failure() {
-    let mut counter = 0;
-    println!("Successful test counter:");
-    loop {
-        let test_directory = "tests/integration_tests/test_files/random/big";
-        let identifier_directory =
-            generate_pair_of_random_files_for_testing(test_directory, 100_000);
+    let basis_file_path = directory.join("basis_file");
+    let updated_file_path = directory.join("updated_file");
 
-        assert_reconstruction_is_correct_for_given_files(
-            &format!("{identifier_directory}/file1"),
-            &format!("{identifier_directory}/file2"),
-        );
+    io_utils::write_to_file(basis_file_path.clone(), basis_file.into())
+        .expect("Could not write to file");
+    io_utils::write_to_file(updated_file_path.clone(), updated_file.into())
+        .expect("Could not write to file");
 
-        // Delete the files we have just created, otherwise we will use a lot of memory.
-        fs::remove_dir_all(identifier_directory).unwrap();
-
-        counter += 1;
-        if counter % 50 == 0 {
-            println!("- {counter}")
-        }
+    TestCase {
+        directory_path: directory.into(),
+        basis_file: basis_file_path,
+        updated_file: updated_file_path,
     }
 }
 
-// Test directories can contain
-// 1 - One set of files for testing (specifically file1 and file2)
-// 2 - Nested directories
-// But not both. This way we can differentiate a directory which should be tested (because it has files)
-// or that just needs to be traversed.
-fn test_files_inside_directory(directory_path: &str) {
-    let entries: Vec<_> = fs::read_dir(directory_path)
+fn gather_test_cases_in_directory(directory_path: &PathBuf) -> Vec<TestCase> {
+    fs::read_dir(directory_path)
         .expect("Could not read directory path")
-        .collect();
-    let nested_directories = entries
-        .iter()
-        .filter(|p| p.as_ref().unwrap().path().is_dir());
-
-    let has_only_nested_directories = nested_directories.count() > 0;
-    if has_only_nested_directories {
-        // We need to recursively test the files within nested directories
-        for dir in entries {
-            test_files_inside_directory(dir.unwrap().path().to_str().unwrap());
-        }
-    } else {
-        // This is already just a test directory
-        assert_reconstruction_is_correct_for_given_files(
-            &format!("{directory_path}/file1"),
-            &format!("{directory_path}/file2"),
-        );
-    }
+        .map(|x| x.expect("Could not read dir entry").path())
+        .map(TestCase::from)
+        .collect()
 }
 
 #[test]
 #[ignore]
 // I could not get this test running in GitHub actions
-// I guess the problem is that it tries to use the already-build binary
+// I guess the problem is that it tries to use the already-built binary
 // of the project, which GitHub does not have access?
 // For now we are ignoring this in the CI and will keep testing manually
 fn run_all_test_files() {
-    // TODO: improve this code
-    test_files_inside_directory("tests/integration_tests/test_files");
+    let test_cases =
+        gather_test_cases_in_directory(&PathBuf::from("tests/integration_tests/test_files"));
+    let total_tests = test_cases.len();
+    for (counter, test_case) in test_cases.iter().enumerate() {
+        println!("Current test case: {}", test_case.directory_path.display());
+
+        assert_reconstruction_is_correct_for_test_case(test_case);
+
+        println!("{}/{total_tests}", counter + 1);
+    }
+}
+
+// TODO: this will be moved
+//       this file is supposed to test for correctness
+//       compression will be tested somewhere else
+mod temp_test_compression {
+    use super::*;
+
+    #[test]
+    #[ignore]
+    fn test_linux_kernel_source_code_similarity() {
+        // 84080 files
+        let linux_files_old = gather_files(Path::new("tests/linux_kernel_source_code/linux-6.1.8"));
+
+        let all_old = concat_vecs(&linux_files_old);
+        println!("old total size: {}", all_old.len());
+
+        // 84078 files
+        let linux_files_new = gather_files(Path::new("tests/linux_kernel_source_code/linux-6.1.9"));
+        let all_new = concat_vecs(&linux_files_new);
+        println!("new total size: {}", all_new.len());
+
+        io_utils::write_to_file("file1.tmp", all_old.into())
+            .expect("Could not write linux to single file");
+        io_utils::write_to_file("file2.tmp", all_new.into())
+            .expect("Could not write linux to single file");
+
+        inspect_size_of_generated_files("file1.tmp", "file2.tmp", 100);
+    }
+
+    fn concat_vecs(vecs: &[Vec<u8>]) -> Vec<u8> {
+        let total_len = vecs.iter().map(|v| v.len()).sum();
+        let mut result = Vec::with_capacity(total_len);
+        for v in vecs {
+            result.extend_from_slice(v);
+        }
+        result
+    }
+
+    fn gather_files(path: &Path) -> Vec<Vec<u8>> {
+        let mut files = Vec::new();
+
+        if path.is_dir() {
+            for entry in fs::read_dir(path).unwrap() {
+                let entry = entry.unwrap();
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
+                    files.extend(gather_files(&entry_path));
+                } else {
+                    let mut file_contents = Vec::new();
+                    let mut file = File::open(entry_path).unwrap();
+                    file.read_to_end(&mut file_contents).unwrap();
+                    files.push(file_contents);
+                }
+            }
+        }
+
+        files
+    }
+
+    #[test]
+    fn test_compressed_size() {
+        let file1 = "tests/integration_tests/test_files/equal_files/big/file1";
+        let file2 = "tests/integration_tests/test_files/equal_files/big/file2";
+
+        inspect_size_of_generated_files(file1, file2, 10000);
+    }
+
+    fn inspect_size_of_generated_files(file1: &str, file2: &str, chunk_size: usize) {
+        let (signature_size, delta_size) =
+            compute_size_of_generated_files(file1, file2, chunk_size);
+        let size_using_algorithm = signature_size + delta_size;
+
+        let original_file_size = {
+            let original_file_metadata =
+                fs::metadata(file2).expect("Could not read metadata of file2");
+            original_file_metadata.len()
+        };
+
+        println!("File1 -> File2");
+        println!("**************************************");
+        println!("[file2 size]: {original_file_size}");
+        println!("[signature size]: {signature_size}");
+        println!("[delta size]: {delta_size}");
+        println!("**************************************");
+        println!("Sending the file directly [file2 size]: {original_file_size} bytes");
+        println!("Using the algorithm [signature + delta size]: {size_using_algorithm} bytes");
+        println!("**************************************");
+        fn compute_size_of_generated_files(
+            file1: &str,
+            file2: &str,
+            chunk_size: usize,
+        ) -> (u64, u64) {
+            let file1_signature = format!("{file1}.signature");
+            let file2_delta = format!("{file2}.delta");
+
+            run_signature_command(file1, &file1_signature, chunk_size);
+            run_delta_command(&file1_signature, file2, &file2_delta, chunk_size);
+
+            // Now we have created the files: `file1.signature` and `file2.delta`
+            // In order for the algorithm to be efficient, we need that the combined size of those
+            // two files to be smaller than the size of `file2`
+            // (otherwise we would be better off sending the file directly)
+
+            let signature_file = format!("{file1}.signature");
+            let delta_file = format!("{file2}.delta");
+            let signature_metadata = fs::metadata(&signature_file)
+                .unwrap_or_else(|_| panic!("Could not read metadata of {}", &signature_file));
+            let delta_metadata = fs::metadata(&delta_file)
+                .unwrap_or_else(|_| panic!("Could not read metadata of {}", &delta_file));
+
+            (signature_metadata.len(), delta_metadata.len())
+        }
+    }
 }
