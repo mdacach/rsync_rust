@@ -1,25 +1,31 @@
 use bytes::Bytes;
 use criterion::{criterion_group, criterion_main, Criterion};
 
-use rsync_rust::delta;
 use rsync_rust::signature;
+use rsync_rust::{delta, patch};
 
 pub fn signature_benchmark(c: &mut Criterion) {
-    let bytes = include_bytes!("file1");
+    let chunk_size = 100;
+
+    let basis_file: Bytes = include_bytes!("test_files/file1").to_vec().into();
 
     c.bench_function("signature [1_000_000 bytes]", |b| {
-        b.iter(|| signature::compute_signature(bytes.to_vec().into(), 100))
+        b.iter(|| signature::compute_signature(basis_file.clone(), chunk_size))
     });
 }
 
 pub fn delta_benchmark(c: &mut Criterion) {
-    let bytes = include_bytes!("file1");
-    let signature = signature::compute_signature(bytes.to_vec().into(), 100);
+    let chunk_size = 100;
 
-    let desired: Bytes = include_bytes!("file2").to_vec().into();
+    let basis_file: Bytes = include_bytes!("test_files/file1").to_vec().into();
+    let signature = signature::compute_signature(basis_file, chunk_size);
+
+    let updated_file: Bytes = include_bytes!("test_files/file2").to_vec().into();
 
     c.bench_function("delta from file and signature [1_000_000 bytes]", |b| {
-        b.iter(|| delta::compute_delta_to_our_file(signature.clone(), desired.clone(), 100))
+        b.iter(|| {
+            delta::compute_delta_to_our_file(signature.clone(), updated_file.clone(), chunk_size)
+        })
     });
 }
 
