@@ -6,6 +6,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::signature::{calculate_strong_hash, FileSignature};
 
+/// Represents how to transform the basis file into the updated file, in order.
+///
+/// The updated file can be reconstructed by reusing some of the basis file blocks
+/// (through a BlockIndex), or by writing (new) byte literals.
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Delta {
     pub(crate) content: Vec<Token>,
@@ -14,9 +18,11 @@ pub struct Delta {
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Token {
     BlockIndex(usize),
-    ByteLiteral(u8),
+    // A reference to a block within the basis file.
+    ByteLiteral(u8), // A byte literal to be reconstructed directly.
 }
 
+// We are using `rmp_serde` as a efficient binary format to save the files in.
 impl From<Delta> for Bytes {
     fn from(value: Delta) -> Self {
         rmp_serde::to_vec(&value)
@@ -31,6 +37,18 @@ impl From<Bytes> for Delta {
     }
 }
 
+/// Computes a Delta from a FileSignature.
+///
+/// Given a Signature and our file, creates the Delta that specifies how to reconstruct
+/// the basis file (the one the Signature represents) into our updated file.
+/// Note that the `chunk_size` argument must be the same as what was used when creating
+/// the FileSignature).
+///
+/// # Arguments
+/// * `signature` - The FileSignature representing the basis file.
+/// * `our_file_bytes` - Our updated file, in bytes.
+/// * `chunk_size` - The size for each block used in the Signature.
+///
 pub fn compute_delta_to_our_file(
     signature: FileSignature,
     our_file_bytes: Bytes,
