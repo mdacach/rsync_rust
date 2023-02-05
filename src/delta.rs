@@ -36,7 +36,11 @@ pub fn compute_delta_to_our_file(
     our_file_bytes: Bytes,
     chunk_size: usize,
 ) -> Delta {
-    let rolling_hashes = {
+    // Each of our "sliding" blocks can match to a block in the basis file.
+    // So we need to test all of the "sliding block", which means we will compare
+    // rolling_hashes and (potentially) strong_hashes.
+
+    let our_sliding_blocks_rolling_hashes = {
         let bytes = our_file_bytes.clone();
 
         if chunk_size <= our_file_bytes.len() {
@@ -62,9 +66,9 @@ pub fn compute_delta_to_our_file(
         }
     };
 
-    let mut delta_content = Vec::new();
-
-    // Rolling Hash -> Block Index in their file
+    // Map with key: RollingHash and value: index of the block with given hash.
+    // This map is used to quickly match blocks from our file and theirs with
+    // equal rolling_hash.
     let their_rolling_hashes = {
         let mut map = HashMap::new();
         signature
@@ -77,57 +81,72 @@ pub fn compute_delta_to_our_file(
         map
     };
 
-    // We have one rolling hash for each potential block
-    let mut index = 0;
-    let our_file_size = our_file_bytes.len();
-    while index < our_file_size {
-        let block_starting_byte = our_file_bytes[index];
+    let delta_tokens = {
+        let mut tokens = Vec::new();
 
-        let end_of_this_block = index + chunk_size - 1; // inclusive
-        if end_of_this_block >= our_file_size {
-            // This is part of a trailing chunk, which shall be sent directly
-            // as ByteLiteral
-            delta_content.push(Token::ByteLiteral(block_starting_byte));
-            index += 1;
-            continue;
-        }
+        let our_file_size = our_file_bytes.len();
+        // We need to construct the delta considering ALL of our bytes:
+        // We have one rolling hash for each potential block
+        let mut index = 0;
+        while index < our_file_size {
+            let our_block_starting_byte = our_file_bytes[index];
 
-        // Otherwise, we may try to match this block
-        let block_rolling_hash = rolling_hashes[index];
+            let end_of_our_block = index + chunk_size - 1; // inclusive
+            if end_of_our_block >= our_file_size {
+                // This is part of a trailing block, which shall be sent directly
+                // as ByteLiteral
+                tokens.push(Token::ByteLiteral(our_block_starting_byte));
+                index += 1;
+                continue;
+            }
 
-        match their_rolling_hashes.get(&block_rolling_hash) {
-            Some(&block_index) => {
-                // This is a potential match. The rolling hashes have matched, but it may be just a
-                // hash collision.
+            // For each block, we will try to match it to an existing one in the basis file
+            // using the rolling_hashes.
+            let our_block_rolling_hash = our_sliding_blocks_rolling_hashes[index];
+            match their_rolling_hashes.get(&our_block_rolling_hash) {
+                Some(&matched_block_index) => {
+                    // We have matched our current block with block at `matched_block_index` in the basis file.
+                    // Note this is only a *potential* match, as it may be a collision in the rolling_hashes.
 
-                // Now we must (compute and) check if the strong hashes match too.
-                let block_strong_hash = {
-                    let block_bytes = &our_file_bytes[index..=end_of_this_block];
-                    calculate_strong_hash(block_bytes)
-                };
-                let their_strong_hash = signature.strong_hashes[block_index];
+                    // We only consider the block to be a true match if we match the strong_hashes as well.
+                    // As the strong_hash is computationally expensive, we only compute it when needed
+                    // (if the rolling_hashes have matched).
+                    let our_block_strong_hash = {
+                        let block_bytes = &our_file_bytes[index..=end_of_our_block];
+                        calculate_strong_hash(block_bytes)
+                    };
+                    let their_strong_hash = signature.strong_hashes[matched_block_index];
 
-                if block_strong_hash == their_strong_hash {
-                    // We are confident it is a match.
-                    delta_content.push(Token::BlockIndex(block_index));
-                    // All this block is already accounted for
-                    index += chunk_size;
-                } else {
-                    // It was just a hash collision on the rolling hashes. Dodged a bullet here!
-                    delta_content.push(Token::ByteLiteral(block_starting_byte));
+                    if our_block_strong_hash == their_strong_hash {
+                        // These blocks have matched both rolling_hashes and strong_hashes.
+                        // We are confident they are the same.
+                        tokens.push(Token::BlockIndex(matched_block_index));
+                        // All this block is already accounted for, jump to the next unaccounted byte.
+                        index += chunk_size;
+                    } else {
+                        // The rolling_hashes matched but not the strong_hashes. It was a false positive.
+                        tokens.push(Token::ByteLiteral(our_block_starting_byte));
+                        index += 1;
+                        // Note that if we, mistakenly, thought that the rolling_hashes were sufficient,
+                        // we would have pushed a reference to a different block, thus reconstructing
+                        // a wrong file in the end! Dodged a bullet here!
+                    }
+                }
+                None => {
+                    // No blocks match the rolling hash. The best we can do is to send the byte directly.
+                    tokens.push(Token::ByteLiteral(our_block_starting_byte));
                     index += 1;
+                    // Note that we can be confident that no matching block exists at all, because equal
+                    // blocks would have equal hashes.
                 }
             }
-            None => {
-                // No blocks match the rolling hash. The best we can do is to send the byte directly.
-                delta_content.push(Token::ByteLiteral(block_starting_byte));
-                index += 1;
-            }
         }
-    }
+
+        tokens
+    };
 
     Delta {
-        content: delta_content,
+        content: delta_tokens,
     }
 }
 
