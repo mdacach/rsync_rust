@@ -1,34 +1,34 @@
 //! rsync main idea:
-//! User A has a initial file, let's call it `file1`.
-//! We (User B) have made some changes to this file, and have our own version of it, `file2`.
-//! Now we want to send our changes to user A, so they can update their `file1` to be equal
-//! to our `file2`.
+//! User A has a initial file, let's call it `basis_file`.
+//! We (User B) have made some changes to this file, and have our own version of it, `updated_file`.
+//! Now we want to send our changes to user A, so they can update their `basis_file` to be equal
+//! to our `updated_file`.
 //!
-//! One way of accomplishing that is sending the `file2` directly.
-//! 1 - User B sends `file2`
-//! 2 - User A replaces `file1` with `file2`
+//! One way of accomplishing that is sending the `updated_file` directly.
+//! 1 - User B sends `updated_file`
+//! 2 - User A replaces `basis_file` with `updated_file`
 //!
-//! This of course works, but we are not leveraging the facts that both `file1` and `file2`
-//! are bound to have mostly the same content. (Picture `file1` as a Git repository,
-//! and `file2` as the repository after you've made some commits).
+//! This of course works, but we are not leveraging the facts that both `basis_file` and `updated_file`
+//! are bound to have mostly the same content. (Picture `basis_file` as a Git repository,
+//! and `updated_file` as the repository after you've made some commits).
 //!
 //! The rsync algorithm:
-//! 1 - User A computes a `signature` for `file1`.
-//!         This `signature` "represents" the contents of `file1`, approximately, and is much smaller.
+//! 1 - User A computes a `signature` for `basis_file`.
+//!         This `signature` "represents" the contents of `basis_file`, approximately, and is much smaller.
 //!
 //! 2 - User A sends the `signature` to User B.
 //!
-//! 3 - User B uses `signature` to compute `delta` from `file2` to `file1`.
-//!         This `delta` has exactly what needs to change from `file1` to become `file2`.
+//! 3 - User B uses `signature` to compute `delta` from `updated_file` to `basis_file`.
+//!         This `delta` has exactly what needs to change from `basis_file` to become `updated_file`.
 //!
 //! 4 - User B sends `delta` to User A.
 //!         In an approximate way, the `delta` encompasses only what needs to be changed between the two files
 //!         which is generally much smaller than the whole file.
 //!
-//! 5 - User A uses `delta` to update `file1`.
+//! 5 - User A uses `delta` to update `basis_file`.
 //!
 //! In the end, we have sent two files throughout the algorithm: `signature` and `delta`.
-//! As long as `size(signature)` + `size(delta)` is smaller than `size(file2)` we have made
+//! As long as `size(signature)` + `size(delta)` is smaller than `size(updated_file)` we have made
 //! improvements regarding network resources.
 //!
 //! Note that we have traded computation time for memory.
@@ -57,9 +57,9 @@ struct Arguments {
 //              e.g: `signature_filename` needs to be convertible to FileSignature
 enum Commands {
     Signature {
-        filename: String,
+        basis_filename: String,
         // The basis file to compute Signature from.
-        output_filename: String,
+        signature_output_filename: String,
         // Where to save the Signature file.
         #[arg(short, long, default_value_t = 10)]
         chunk_size: usize, // Size for each block.
@@ -67,7 +67,7 @@ enum Commands {
     Delta {
         signature_filename: String,
         // Signature file computed by `Signature` command.
-        our_file_filename: String,
+        updated_filename: String,
         // File to compute `Delta` from `Signature`.
         delta_filename: String,
         // Where to save the `Delta` file.
@@ -94,21 +94,21 @@ fn main() {
 
     match args.command {
         Commands::Signature {
-            filename,
-            output_filename,
+            basis_filename,
+            signature_output_filename,
             chunk_size,
         } => {
-            handle_signature_command(filename, output_filename, chunk_size);
+            handle_signature_command(basis_filename, signature_output_filename, chunk_size);
         }
         Commands::Delta {
             signature_filename,
-            our_file_filename,
+            updated_filename,
             delta_filename,
             chunk_size,
         } => {
             handle_delta_command(
                 signature_filename,
-                our_file_filename,
+                updated_filename,
                 delta_filename,
                 chunk_size,
             );
@@ -129,18 +129,22 @@ fn main() {
     }
 }
 
-fn handle_signature_command(filename: String, output_filename: String, chunk_size: usize) {
-    match io_utils::read_file(filename.clone()) {
+fn handle_signature_command(
+    basis_filename: String,
+    signature_output_filename: String,
+    chunk_size: usize,
+) {
+    match io_utils::read_file(basis_filename.clone()) {
         Ok(file_bytes) => {
             let signature = compute_signature(file_bytes, chunk_size);
 
-            io_utils::write_to_file(output_filename, signature.into())
+            io_utils::write_to_file(signature_output_filename, signature.into())
                 .wrap_err("Unable to write to file")
                 .unwrap();
         }
         Err(error) => {
             println!(
-                "Unable to read file: {filename}\n\
+                "Unable to read file: {basis_filename}\n\
                           Are you sure the path provided is correct?\n\
                           Error: {error}"
             );
@@ -151,7 +155,7 @@ fn handle_signature_command(filename: String, output_filename: String, chunk_siz
 
 fn handle_delta_command(
     signature_filename: String,
-    our_file_filename: String,
+    updated_filename: String,
     delta_filename: String,
     chunk_size: usize,
 ) {
@@ -167,11 +171,11 @@ fn handle_delta_command(
         }
     };
 
-    let our_file_bytes = match io_utils::read_file(our_file_filename.clone()) {
+    let updated_file_bytes = match io_utils::read_file(updated_filename.clone()) {
         Ok(bytes) => bytes,
         Err(error) => {
             println!(
-                "Unable to read file: {our_file_filename}\n\
+                "Unable to read file: {updated_filename}\n\
                           Are you sure the path provided is correct?\n\
                           Error: {error}"
             );
@@ -179,7 +183,8 @@ fn handle_delta_command(
         }
     };
 
-    let delta = compute_delta_to_our_file(signature_file_bytes.into(), our_file_bytes, chunk_size);
+    let delta =
+        compute_delta_to_our_file(signature_file_bytes.into(), updated_file_bytes, chunk_size);
     io_utils::write_to_file(delta_filename, delta.into())
         .wrap_err("Unable to write to file")
         .unwrap();

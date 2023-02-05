@@ -46,15 +46,15 @@ impl From<Bytes> for FileSignature {
 /// and each block is represented by two hashes.
 ///
 /// # Arguments
-/// * `content` - A Bytes structure which holds the content of the file.
+/// * `basis_file` - A Bytes structure which holds the content of the file.
 /// * `chunk_size` - The size for each block.
 ///
-pub fn compute_signature(content: Bytes, chunk_size: usize) -> FileSignature {
-    let blocks = content.chunks(chunk_size);
+pub fn compute_signature(basis_file: Bytes, chunk_size: usize) -> FileSignature {
+    let blocks = basis_file.chunks(chunk_size);
     let strong_hashes = blocks.map(calculate_strong_hash).collect();
 
     let mut rolling_hashes = Vec::new();
-    let blocks = content.chunks(chunk_size);
+    let blocks = basis_file.chunks(chunk_size);
     blocks.for_each(|block| {
         // TODO: change rolling hash to accept bytes
         // TODO: make this code better

@@ -46,12 +46,12 @@ impl From<Bytes> for Delta {
 ///
 /// # Arguments
 /// * `signature` - The FileSignature representing the basis file.
-/// * `our_file_bytes` - Our updated file, in bytes.
+/// * `updated_file` - Our updated file, in bytes.
 /// * `chunk_size` - The size for each block used in the Signature.
 ///
 pub fn compute_delta_to_our_file(
     signature: FileSignature,
-    our_file_bytes: Bytes,
+    updated_file: Bytes,
     chunk_size: usize,
 ) -> Delta {
     // Each of our "sliding" blocks can match to a block in the basis file.
@@ -59,9 +59,9 @@ pub fn compute_delta_to_our_file(
     // rolling_hashes and (potentially) strong_hashes.
 
     let our_sliding_blocks_rolling_hashes = {
-        let bytes = our_file_bytes.clone();
+        let bytes = updated_file.clone();
 
-        if chunk_size <= our_file_bytes.len() {
+        if chunk_size <= updated_file.len() {
             // We will have a rolling hash for each sliding block
             let mut rolling_hashes = Vec::new();
 
@@ -102,12 +102,12 @@ pub fn compute_delta_to_our_file(
     let delta_tokens = {
         let mut tokens = Vec::new();
 
-        let our_file_size = our_file_bytes.len();
+        let our_file_size = updated_file.len();
         // We need to construct the delta considering ALL of our bytes:
         // We have one rolling hash for each potential block
         let mut index = 0;
         while index < our_file_size {
-            let our_block_starting_byte = our_file_bytes[index];
+            let our_block_starting_byte = updated_file[index];
 
             let end_of_our_block = index + chunk_size - 1; // inclusive
             if end_of_our_block >= our_file_size {
@@ -130,7 +130,7 @@ pub fn compute_delta_to_our_file(
                     // As the strong_hash is computationally expensive, we only compute it when needed
                     // (if the rolling_hashes have matched).
                     let our_block_strong_hash = {
-                        let block_bytes = &our_file_bytes[index..=end_of_our_block];
+                        let block_bytes = &updated_file[index..=end_of_our_block];
                         calculate_strong_hash(block_bytes)
                     };
                     let their_strong_hash = signature.strong_hashes[matched_block_index];
@@ -207,13 +207,12 @@ mod tests {
         let test_chunk_size = 5;
         // Hello World! has 12 bytes. We will have 2 chunks of size 5
         // and a leftover chunk of size 2. This last chunk will be sent as two ByteLiterals.
-        let file1 = Bytes::from("Hello World!");
-        let file2 = Bytes::from("Hello World!");
+        let basis_file = Bytes::from("Hello World!");
+        let updated_file = Bytes::from("Hello World!");
 
-        let file1_signature = compute_signature(file1, test_chunk_size);
-        // We need to calculate the delta from our file `file2` to `file1` based on
-        // `file1`'s signature.
-        let delta = compute_delta_to_our_file(file1_signature, file2, test_chunk_size);
+        let signature = compute_signature(basis_file, test_chunk_size);
+        // We need to calculate the delta from our `updated_file` to `basis_file` based on signature.
+        let delta = compute_delta_to_our_file(signature, updated_file, test_chunk_size);
 
         // 2 BlockIndex (for the first two chunks).
         let block_indexes = &delta.content[0..2];
@@ -233,11 +232,11 @@ mod tests {
         let test_chunk_size = 3;
 
         // Files are completely different, no block will match.
-        let file1 = Bytes::from("ABCDEF");
-        let file2 = Bytes::from("GHIJKL");
+        let basis_file = Bytes::from("ABCDEF");
+        let updated_file = Bytes::from("GHIJKL");
 
-        let file1_signature = compute_signature(file1, test_chunk_size);
-        let delta = compute_delta_to_our_file(file1_signature, file2, test_chunk_size);
+        let signature = compute_signature(basis_file, test_chunk_size);
+        let delta = compute_delta_to_our_file(signature, updated_file, test_chunk_size);
 
         for b in delta.content {
             assert!(matches!(b, Token::ByteLiteral(_)));
@@ -249,11 +248,11 @@ mod tests {
         let test_chunk_size = 3;
 
         // We should have two matching chunks: "ABC" and "EF ".
-        let file1 = Bytes::from("ZY ABCDEF ");
-        let file2 = Bytes::from("ABCDxEF Z");
+        let basis_file = Bytes::from("ZY ABCDEF ");
+        let updated_file = Bytes::from("ABCDxEF Z");
 
-        let file1_signature = compute_signature(file1, test_chunk_size);
-        let delta = compute_delta_to_our_file(file1_signature, file2, test_chunk_size);
+        let signature = compute_signature(basis_file, test_chunk_size);
+        let delta = compute_delta_to_our_file(signature, updated_file, test_chunk_size);
 
         let byte_literals = delta
             .content
@@ -273,11 +272,11 @@ mod tests {
         let test_chunk_size = 100;
 
         // We should have two matching chunks: "ABC" and "EF ".
-        let file1 = Bytes::from("ZY ABCDEF ");
-        let file2 = Bytes::from("ABCDxEF Z");
+        let basis_file = Bytes::from("ZY ABCDEF ");
+        let updated_file = Bytes::from("ABCDxEF Z");
 
-        let file1_signature = compute_signature(file1, test_chunk_size);
-        let delta = compute_delta_to_our_file(file1_signature, file2, test_chunk_size);
+        let signature = compute_signature(basis_file, test_chunk_size);
+        let delta = compute_delta_to_our_file(signature, updated_file, test_chunk_size);
 
         let block_indexes = delta
             .content
