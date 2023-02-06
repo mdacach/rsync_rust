@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::process::Command;
 
 #[derive(Debug)]
 struct NotDirectoryError;
@@ -57,4 +58,52 @@ impl TryFrom<PathBuf> for TestCase {
             })
         }
     }
+}
+
+pub fn run_signature_command(filename: &PathBuf, output_filename: &PathBuf, chunk_size: usize) {
+    Command::new("target/release/rsync_rust")
+        .arg("signature")
+        .arg(filename)
+        .arg(output_filename)
+        .args(["-c", &chunk_size.to_string()])
+        .spawn()
+        .expect("failed to spawn child process")
+        .wait()
+        .expect("failed to wait on child");
+}
+
+pub fn run_delta_command(
+    signature_filename: &PathBuf,
+    our_filename: &PathBuf,
+    delta_filename: &PathBuf,
+    chunk_size: usize,
+) {
+    Command::new("target/release/rsync_rust")
+        .arg("delta")
+        .arg(signature_filename)
+        .arg(our_filename)
+        .arg(delta_filename)
+        .args(["-c", &chunk_size.to_string()])
+        .spawn()
+        .expect("failed to spawn child process")
+        .wait()
+        .expect("failed to wait on child");
+}
+
+pub fn run_patch_command(
+    basis_filename: &PathBuf,
+    delta_filename: &PathBuf,
+    recreated_filename: &PathBuf,
+    chunk_size: usize,
+) {
+    Command::new("target/release/rsync_rust")
+        .arg("patch")
+        .arg(basis_filename)
+        .arg(delta_filename)
+        .arg(recreated_filename)
+        .args(["-c", &chunk_size.to_string()])
+        .spawn()
+        .expect("failed to spawn child process")
+        .wait()
+        .expect("failed to wait on child");
 }

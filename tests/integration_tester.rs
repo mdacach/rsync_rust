@@ -19,14 +19,13 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use nanoid::nanoid;
 use rand::distributions::Alphanumeric;
 use rand::prelude::*;
 
 use rsync_rust::io_utils;
-use rsync_rust::test_utils::TestCase;
+use rsync_rust::test_utils::*;
 
 // This test runs all the saved TestCases and asserts the algorithm works for each of them.
 // Running this test alone should be enough to verify the correctness of the algorithm
@@ -84,7 +83,7 @@ fn generate_random_bytes_with_linebreaks(length: usize) -> Vec<u8> {
     result
 }
 
-fn assert_files_have_equal_content(desired_file: &str, recreated_file: &str) {
+fn assert_files_have_equal_content(desired_file: &PathBuf, recreated_file: &PathBuf) {
     let mut file1_contents = Vec::new();
     let _ = File::open(desired_file)
         .unwrap()
@@ -98,54 +97,6 @@ fn assert_files_have_equal_content(desired_file: &str, recreated_file: &str) {
     assert_eq!(file1_contents, file2_contents);
 }
 
-fn run_signature_command(filename: &str, output_filename: &str, chunk_size: usize) {
-    Command::new("target/release/rsync_rust")
-        .arg("signature")
-        .arg(filename)
-        .arg(output_filename)
-        .args(["-c", &chunk_size.to_string()])
-        .spawn()
-        .expect("failed to spawn child process")
-        .wait()
-        .expect("failed to wait on child");
-}
-
-fn run_delta_command(
-    signature_filename: &str,
-    our_filename: &str,
-    delta_filename: &str,
-    chunk_size: usize,
-) {
-    Command::new("target/release/rsync_rust")
-        .arg("delta")
-        .arg(signature_filename)
-        .arg(our_filename)
-        .arg(delta_filename)
-        .args(["-c", &chunk_size.to_string()])
-        .spawn()
-        .expect("failed to spawn child process")
-        .wait()
-        .expect("failed to wait on child");
-}
-
-fn run_patch_command(
-    basis_filename: &str,
-    delta_filename: &str,
-    recreated_filename: &str,
-    chunk_size: usize,
-) {
-    Command::new("target/release/rsync_rust")
-        .arg("patch")
-        .arg(basis_filename)
-        .arg(delta_filename)
-        .arg(recreated_filename)
-        .args(["-c", &chunk_size.to_string()])
-        .spawn()
-        .expect("failed to spawn child process")
-        .wait()
-        .expect("failed to wait on child");
-}
-
 fn assert_reconstruction_is_correct_for_test_case(test_case: &TestCase) {
     let TestCase {
         directory_path,
@@ -153,17 +104,17 @@ fn assert_reconstruction_is_correct_for_test_case(test_case: &TestCase) {
         updated_file,
     } = test_case;
 
-    let signature = format!("{}/signature", directory_path.display());
-    let delta = format!("{}/delta", directory_path.display());
+    let signature = directory_path.join("signature");
+    let delta = directory_path.join("delta");
 
-    let recreated_file = format!("{}/recreated_file", directory_path.display());
+    let recreated_file = directory_path.join("recreated_file");
 
     // TODO: Make stuff accept Path instead of &str
-    run_signature_command(basis_file.to_str().unwrap(), &signature, 10);
-    run_delta_command(&signature, updated_file.to_str().unwrap(), &delta, 10);
-    run_patch_command(basis_file.to_str().unwrap(), &delta, &recreated_file, 10);
+    run_signature_command(basis_file, &signature, 10);
+    run_delta_command(&signature, updated_file, &delta, 10);
+    run_patch_command(basis_file, &delta, &recreated_file, 10);
 
-    assert_files_have_equal_content(updated_file.to_str().unwrap(), &recreated_file);
+    assert_files_have_equal_content(updated_file, &recreated_file);
 }
 
 fn generate_test_case(directory: &PathBuf, length: usize) -> TestCase {
@@ -195,118 +146,4 @@ fn gather_test_cases_in_directory(directory_path: &PathBuf) -> Vec<TestCase> {
         .map(TestCase::try_from) // TODO: try here
         .filter_map(|x| x.ok())
         .collect()
-}
-
-// TODO: this will be moved
-//       this file is supposed to test for correctness
-//       compression will be tested somewhere else
-mod temp_test_compression {
-    use super::*;
-
-    #[test]
-    #[ignore]
-    fn test_linux_kernel_source_code_similarity() {
-        // 84080 files
-        let linux_files_old = gather_files(Path::new("tests/linux_kernel_source_code/linux-6.1.8"));
-
-        let all_old = concat_vecs(&linux_files_old);
-        println!("old total size: {}", all_old.len());
-
-        // 84078 files
-        let linux_files_new = gather_files(Path::new("tests/linux_kernel_source_code/linux-6.1.9"));
-        let all_new = concat_vecs(&linux_files_new);
-        println!("new total size: {}", all_new.len());
-
-        io_utils::write_to_file("file1.tmp", all_old.into())
-            .expect("Could not write linux to single file");
-        io_utils::write_to_file("file2.tmp", all_new.into())
-            .expect("Could not write linux to single file");
-
-        inspect_size_of_generated_files("file1.tmp", "file2.tmp", 100);
-    }
-
-    fn concat_vecs(vecs: &[Vec<u8>]) -> Vec<u8> {
-        let total_len = vecs.iter().map(|v| v.len()).sum();
-        let mut result = Vec::with_capacity(total_len);
-        for v in vecs {
-            result.extend_from_slice(v);
-        }
-        result
-    }
-
-    fn gather_files(path: &Path) -> Vec<Vec<u8>> {
-        let mut files = Vec::new();
-
-        if path.is_dir() {
-            for entry in fs::read_dir(path).unwrap() {
-                let entry = entry.unwrap();
-                let entry_path = entry.path();
-                if entry_path.is_dir() {
-                    files.extend(gather_files(&entry_path));
-                } else {
-                    let mut file_contents = Vec::new();
-                    let mut file = File::open(entry_path).unwrap();
-                    file.read_to_end(&mut file_contents).unwrap();
-                    files.push(file_contents);
-                }
-            }
-        }
-
-        files
-    }
-
-    #[test]
-    fn test_compressed_size() {
-        let file1 = "tests/integration_tests/test_files/equal_files/big/file1";
-        let file2 = "tests/integration_tests/test_files/equal_files/big/file2";
-
-        inspect_size_of_generated_files(file1, file2, 10000);
-    }
-
-    fn inspect_size_of_generated_files(file1: &str, file2: &str, chunk_size: usize) {
-        let (signature_size, delta_size) =
-            compute_size_of_generated_files(file1, file2, chunk_size);
-        let size_using_algorithm = signature_size + delta_size;
-
-        let original_file_size = {
-            let original_file_metadata =
-                fs::metadata(file2).expect("Could not read metadata of file2");
-            original_file_metadata.len()
-        };
-
-        println!("File1 -> File2");
-        println!("**************************************");
-        println!("[file2 size]: {original_file_size}");
-        println!("[signature size]: {signature_size}");
-        println!("[delta size]: {delta_size}");
-        println!("**************************************");
-        println!("Sending the file directly [file2 size]: {original_file_size} bytes");
-        println!("Using the algorithm [signature + delta size]: {size_using_algorithm} bytes");
-        println!("**************************************");
-        fn compute_size_of_generated_files(
-            file1: &str,
-            file2: &str,
-            chunk_size: usize,
-        ) -> (u64, u64) {
-            let file1_signature = format!("{file1}.signature");
-            let file2_delta = format!("{file2}.delta");
-
-            run_signature_command(file1, &file1_signature, chunk_size);
-            run_delta_command(&file1_signature, file2, &file2_delta, chunk_size);
-
-            // Now we have created the files: `file1.signature` and `file2.delta`
-            // In order for the algorithm to be efficient, we need that the combined size of those
-            // two files to be smaller than the size of `file2`
-            // (otherwise we would be better off sending the file directly)
-
-            let signature_file = format!("{file1}.signature");
-            let delta_file = format!("{file2}.delta");
-            let signature_metadata = fs::metadata(&signature_file)
-                .unwrap_or_else(|_| panic!("Could not read metadata of {}", &signature_file));
-            let delta_metadata = fs::metadata(&delta_file)
-                .unwrap_or_else(|_| panic!("Could not read metadata of {}", &delta_file));
-
-            (signature_metadata.len(), delta_metadata.len())
-        }
-    }
 }
