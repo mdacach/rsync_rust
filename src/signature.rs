@@ -56,9 +56,7 @@ pub fn compute_signature(basis_file: Bytes, chunk_size: usize) -> FileSignature 
     let mut rolling_hashes = Vec::new();
     let blocks = basis_file.chunks(chunk_size);
     blocks.for_each(|block| {
-        // TODO: change rolling hash to accept bytes
-        // TODO: make this code better
-        let hasher = RollingHash::from_initial_string(&String::from_utf8_lossy(block));
+        let hasher = RollingHash::from_initial_bytes(String::from_utf8_lossy(block).as_bytes());
         let hash = hasher.get_current_hash();
         rolling_hashes.push(hash);
     });

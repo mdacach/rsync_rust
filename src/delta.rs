@@ -66,14 +66,14 @@ pub fn compute_delta_to_our_file(
             let mut rolling_hashes = Vec::new();
 
             let mut windows_iter = bytes.windows(chunk_size);
-            let first_string = String::from_utf8_lossy(windows_iter.next().unwrap());
-            let mut hasher = RollingHash::from_initial_string(&first_string);
+            // Windows iter is not empty here because that case is handled by the if statement above
+            let mut hasher = RollingHash::from_initial_bytes(windows_iter.next().unwrap());
             rolling_hashes.push(hasher.get_current_hash());
 
             // we do not need windows here, just iterate one-by-one after the initial one
             windows_iter.for_each(|window| {
                 hasher.pop_front();
-                hasher.push_back(*window.last().unwrap() as char);
+                hasher.push_back(*window.last().unwrap());
                 rolling_hashes.push(hasher.get_current_hash());
             });
 
