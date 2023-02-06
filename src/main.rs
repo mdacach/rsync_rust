@@ -133,7 +133,7 @@ fn handle_signature_command(
     signature_output_filename: PathBuf,
     chunk_size: usize,
 ) {
-    let basis_file_bytes = io_utils::attempt_to_read_file(basis_filename.clone());
+    let basis_file_bytes = io_utils::attempt_to_read_file(basis_filename);
     let signature = compute_signature(basis_file_bytes, chunk_size);
 
     io_utils::write_to_file(signature_output_filename, signature.into())
@@ -147,8 +147,8 @@ fn handle_delta_command(
     delta_filename: PathBuf,
     chunk_size: usize,
 ) {
-    let signature_file_bytes = io_utils::attempt_to_read_file(signature_filename.clone());
-    let updated_file_bytes = io_utils::attempt_to_read_file(updated_filename.clone());
+    let signature_file_bytes = io_utils::attempt_to_read_file(signature_filename);
+    let updated_file_bytes = io_utils::attempt_to_read_file(updated_filename);
 
     let delta =
         compute_delta_to_our_file(signature_file_bytes.into(), updated_file_bytes, chunk_size);
@@ -164,8 +164,8 @@ fn handle_patch_command(
     recreated_filename: PathBuf,
     chunk_size: usize,
 ) {
-    let basis_file_bytes = io_utils::attempt_to_read_file(basis_filename.clone());
-    let delta_file_bytes = io_utils::attempt_to_read_file(delta_filename.clone());
+    let basis_file_bytes = io_utils::attempt_to_read_file(basis_filename);
+    let delta_file_bytes = io_utils::attempt_to_read_file(delta_filename);
 
     let delta: Delta = delta_file_bytes.into();
     let recreated = apply_delta(basis_file_bytes, delta, chunk_size);
