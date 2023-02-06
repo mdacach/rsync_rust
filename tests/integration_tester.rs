@@ -1,3 +1,20 @@
+//! Tests for correctness
+//!
+//! A test here means to be able to reconstruct an updated file using the algorithm.
+//! A TestCase consists of a directory with:
+//! 1 - `basis_file` - meaning the file we would like to update
+//! 2 - `updated_file` - meaning the file we would like in the end
+//! (`basis_file` would be the one User A has, and `updated_file` the one User B has)
+//!
+//! A test follows the steps a user would do manually:
+//! 1 - Compute a signature for `basis_file`
+//! 2 - Compute a delta for `updated_file`
+//! 3 - Recreate the updated file
+//!
+//! A test is successful if the recreated file is exactly equal to `updated_file`
+//!
+//! TestCase directories are tests/integration_tests/test_files
+//! Each TestCase has a unique identifier id for reference
 use std::fs;
 use std::fs::File;
 use std::io::Read;
@@ -10,6 +27,40 @@ use rand::prelude::*;
 
 use rsync_rust::io_utils;
 use rsync_rust::test_utils::TestCase;
+
+// This test runs all the saved TestCases and asserts the algorithm works for each of them.
+// Running this test alone should be enough to verify the correctness of the algorithm
+// (given that we have TestCases in the repository, which we do).
+#[test]
+#[ignore]
+// I could not get this test running in GitHub actions
+// I guess the problem is that it tries to use the already-built binary
+// of the project, which GitHub does not have access?
+// For now we are ignoring this in the CI and will keep testing manually
+fn run_all_test_files() {
+    let test_cases =
+        gather_test_cases_in_directory(&PathBuf::from("tests/integration_tests/test_files"));
+    let total_tests = test_cases.len();
+    for (counter, test_case) in test_cases.iter().enumerate() {
+        println!("Current test case: {}", test_case.directory_path.display());
+
+        assert_reconstruction_is_correct_for_test_case(test_case);
+
+        println!("{}/{total_tests}", counter + 1);
+    }
+}
+
+#[test]
+#[ignore]
+// Helper code to create more test_cases, not meant to be used for testing
+fn create_5_test_cases() {
+    let files_directory = Path::new("tests/integration_tests/test_files");
+    for _ in 0..5 {
+        let identifier = nanoid!(5);
+
+        generate_test_case(&files_directory.join(Path::new(&identifier)), 1_000_000);
+    }
+}
 
 fn generate_random_bytes(length: usize) -> Vec<u8> {
     let mut rng = thread_rng();
@@ -115,17 +166,6 @@ fn assert_reconstruction_is_correct_for_test_case(test_case: &TestCase) {
     assert_files_have_equal_content(updated_file.to_str().unwrap(), &recreated_file);
 }
 
-#[test]
-#[ignore]
-fn create_5_test_cases() {
-    let files_directory = Path::new("tests/integration_tests/test_files");
-    for _ in 0..5 {
-        let identifier = nanoid!(5);
-
-        generate_test_case(&files_directory.join(Path::new(&identifier)), 1_000_000);
-    }
-}
-
 fn generate_test_case(directory: &PathBuf, length: usize) -> TestCase {
     let basis_file = generate_random_bytes_with_linebreaks(length);
     let updated_file = generate_random_bytes_with_linebreaks(length);
@@ -155,25 +195,6 @@ fn gather_test_cases_in_directory(directory_path: &PathBuf) -> Vec<TestCase> {
         .map(TestCase::try_from) // TODO: try here
         .filter_map(|x| x.ok())
         .collect()
-}
-
-#[test]
-#[ignore]
-// I could not get this test running in GitHub actions
-// I guess the problem is that it tries to use the already-built binary
-// of the project, which GitHub does not have access?
-// For now we are ignoring this in the CI and will keep testing manually
-fn run_all_test_files() {
-    let test_cases =
-        gather_test_cases_in_directory(&PathBuf::from("tests/integration_tests/test_files"));
-    let total_tests = test_cases.len();
-    for (counter, test_case) in test_cases.iter().enumerate() {
-        println!("Current test case: {}", test_case.directory_path.display());
-
-        assert_reconstruction_is_correct_for_test_case(test_case);
-
-        println!("{}/{total_tests}", counter + 1);
-    }
 }
 
 // TODO: this will be moved
