@@ -7,11 +7,13 @@ struct NotDirectoryError;
 #[derive(Debug)]
 struct NoInputFilesError;
 
+#[derive(Debug)]
 pub enum TestCaseConversionErrorType {
     NotDirectoryError,
     NoInputFilesError,
 }
 
+#[derive(Debug)]
 pub struct TestCaseConversionError {
     pub error_type: TestCaseConversionErrorType,
     pub path: PathBuf,
