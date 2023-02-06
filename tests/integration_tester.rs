@@ -150,8 +150,10 @@ fn generate_test_case(directory: &PathBuf, length: usize) -> TestCase {
 fn gather_test_cases_in_directory(directory_path: &PathBuf) -> Vec<TestCase> {
     fs::read_dir(directory_path)
         .expect("Could not read directory path")
-        .map(|x| x.expect("Could not read dir entry").path())
-        .map(TestCase::from)
+        .filter_map(|x| x.ok())
+        .map(|x| x.path())
+        .map(TestCase::try_from) // TODO: try here
+        .filter_map(|x| x.ok())
         .collect()
 }
 

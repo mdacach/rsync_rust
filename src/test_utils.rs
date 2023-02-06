@@ -1,8 +1,20 @@
 use std::path::PathBuf;
 
-use bytes::Bytes;
+#[derive(Debug)]
+struct NotDirectoryError;
 
-use crate::io_utils;
+#[derive(Debug)]
+struct NoInputFilesError;
+
+pub enum TestCaseConversionErrorType {
+    NotDirectoryError,
+    NoInputFilesError,
+}
+
+pub struct TestCaseConversionError {
+    pub error_type: TestCaseConversionErrorType,
+    pub path: PathBuf,
+}
 
 /// A test consists of trying to recreate `updated_file` from `basis_file`.
 /// It will use all steps of the rsync algorithm, and assert that we were successfully able to
@@ -10,7 +22,7 @@ use crate::io_utils;
 /// 1 - Compute signature from `basis_file`
 /// 2 - Compute delta from signature and `updated_file`
 /// 3 - Recreating `updated_file` from `basis_file` and `delta`
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TestCase {
     pub directory_path: PathBuf,
     // Directory containing the files. Useful if we want to persist intermediate
@@ -19,31 +31,30 @@ pub struct TestCase {
     pub updated_file: PathBuf,
 }
 
-impl From<PathBuf> for TestCase {
-    fn from(path: PathBuf) -> Self {
-        // TODO: better error handling
+impl TryFrom<PathBuf> for TestCase {
+    type Error = TestCaseConversionError;
+
+    fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
         if !path.is_dir() {
-            panic!(
-                "{} is not a directory",
-                path.to_str().expect("Could not convert path to str.")
-            );
+            return Err(TestCaseConversionError {
+                error_type: TestCaseConversionErrorType::NotDirectoryError,
+                path,
+            });
         }
 
         let basis_file = path.join("basis_file");
         let updated_file = path.join("updated_file");
         if basis_file.exists() && updated_file.exists() {
-            TestCase {
+            Ok(TestCase {
                 directory_path: path,
                 basis_file,
                 updated_file,
-            }
+            })
         } else {
-            panic!(
-                "Test directory does not contain required files. \n\
-                    It must contain two files:\n\
-                    - basis_file: file which will be updated\n\
-                    - updated_file: file which will be reconstructed"
-            );
+            Err(TestCaseConversionError {
+                error_type: TestCaseConversionErrorType::NoInputFilesError,
+                path,
+            })
         }
     }
 }

@@ -734,7 +734,7 @@ name = "rolling_hash_rust"
 version = "0.1.0"
 source = "git+https://github.com/mdacach/rolling_hash_rust#3bcc25fddd4c9ad6065418c7a12663b8076ce3ec"
 dependencies = [
-    "rand",
+ "rand",
 ]
 
 [[package]]
