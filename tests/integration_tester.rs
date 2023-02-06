@@ -31,11 +31,14 @@ use rsync_rust::test_utils::*;
 // Running this test alone should be enough to verify the correctness of the algorithm
 // (given that we have TestCases in the repository, which we do).
 #[test]
+#[ignore]
 // I could not get this test running in GitHub actions
 // I guess the problem is that it tries to use the already-built binary
 // of the project, which GitHub does not have access?
 // For now we are ignoring this in the CI and will keep testing manually
 fn run_all_test_files() {
+    create_release_mode_target();
+
     let test_cases =
         gather_test_cases_in_directory(&PathBuf::from("tests/integration_tests/test_files"));
     let total_tests = test_cases.len();

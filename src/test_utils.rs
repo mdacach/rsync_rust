@@ -60,9 +60,18 @@ impl TryFrom<PathBuf> for TestCase {
     }
 }
 
-pub fn run_signature_command(filename: &PathBuf, output_filename: &PathBuf, chunk_size: usize) {
+// This populates `target/release/rsync_rust` which is used in the commands below
+pub fn create_release_mode_target() {
     Command::new("cargo")
-        .args(["run", "-r"])
+        .args(["build", "-r"])
+        .spawn()
+        .expect("failed to spawn child process")
+        .wait()
+        .expect("failed to wait on child");
+}
+
+pub fn run_signature_command(filename: &PathBuf, output_filename: &PathBuf, chunk_size: usize) {
+    Command::new("target/release/rsync_rust")
         .arg("signature")
         .arg(filename)
         .arg(output_filename)
@@ -71,15 +80,6 @@ pub fn run_signature_command(filename: &PathBuf, output_filename: &PathBuf, chun
         .expect("failed to spawn child process")
         .wait()
         .expect("failed to wait on child");
-    // Command::new("target/release/rsync_rust")
-    //     .arg("signature")
-    //     .arg(filename)
-    //     .arg(output_filename)
-    //     .args(["-c", &chunk_size.to_string()])
-    //     .spawn()
-    //     .expect("failed to spawn child process")
-    //     .wait()
-    //     .expect("failed to wait on child");
 }
 
 pub fn run_delta_command(
@@ -88,8 +88,7 @@ pub fn run_delta_command(
     delta_filename: &PathBuf,
     chunk_size: usize,
 ) {
-    Command::new("cargo")
-        .args(["run", "-r"])
+    Command::new("target/release/rsync_rust")
         .arg("delta")
         .arg(signature_filename)
         .arg(our_filename)
@@ -99,16 +98,6 @@ pub fn run_delta_command(
         .expect("failed to spawn child process")
         .wait()
         .expect("failed to wait on child");
-    // Command::new("target/release/rsync_rust")
-    //     .arg("delta")
-    //     .arg(signature_filename)
-    //     .arg(our_filename)
-    //     .arg(delta_filename)
-    //     .args(["-c", &chunk_size.to_string()])
-    //     .spawn()
-    //     .expect("failed to spawn child process")
-    //     .wait()
-    //     .expect("failed to wait on child");
 }
 
 pub fn run_patch_command(
@@ -117,8 +106,7 @@ pub fn run_patch_command(
     recreated_filename: &PathBuf,
     chunk_size: usize,
 ) {
-    Command::new("cargo")
-        .args(["run", "-r"])
+    Command::new("target/release/rsync_rust")
         .arg("patch")
         .arg(basis_filename)
         .arg(delta_filename)
@@ -128,15 +116,4 @@ pub fn run_patch_command(
         .expect("failed to spawn child process")
         .wait()
         .expect("failed to wait on child");
-
-    // Command::new("target/release/rsync_rust")
-    //     .arg("patch")
-    //     .arg(basis_filename)
-    //     .arg(delta_filename)
-    //     .arg(recreated_filename)
-    //     .args(["-c", &chunk_size.to_string()])
-    //     .spawn()
-    //     .expect("failed to spawn child process")
-    //     .wait()
-    //     .expect("failed to wait on child");
 }
