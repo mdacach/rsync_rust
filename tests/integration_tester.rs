@@ -31,7 +31,6 @@ use rsync_rust::test_utils::*;
 // Running this test alone should be enough to verify the correctness of the algorithm
 // (given that we have TestCases in the repository, which we do).
 #[test]
-#[ignore]
 // I could not get this test running in GitHub actions
 // I guess the problem is that it tries to use the already-built binary
 // of the project, which GitHub does not have access?
