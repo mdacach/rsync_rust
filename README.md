@@ -6,8 +6,8 @@ This code uses my implementation of a [`rolling_hash`](https://github.com/mdacac
 
 ## Main idea
 
-User A has a initial file, let's call it `basis_file`.  
-User B has made some changes to this file, and has its own version of it, let's call it `updated_file`.  
+User A has an initial file. Let's call it `basis_file`.  
+User B has made some changes to this file and has its own version of it. Let's call it `updated_file`.  
 Now, User B wants to propagate its changes to User A, so they can both have the more recent file.
 
 One way of accomplishing that is for User B to send their file directly to User A:
@@ -15,10 +15,10 @@ One way of accomplishing that is for User B to send their file directly to User 
 1. User B sends `updated_file` to User A
 2. User A replaces `basis_file` with `updated_file`
 
-This of course works, but we are not leveraging the fact that both `basis_file` and `updated_file`
+This, of course, works, but we are not leveraging the fact that both `basis_file` and `updated_file`
 are very similar (one is an updated version of the other).
 
-(Picture `basis_file` is some file in a Git repository,
+(Suppose `basis_file` is some file in a Git repository,
 and `updated_file` is the same file after you've made some commits).
 
 ## The rsync Algorithm
@@ -26,7 +26,7 @@ and `updated_file` is the same file after you've made some commits).
 The rsync algorithm aims to improve the network usage of such interaction by lowering the amount of resources we need to
 send between the connections. While the first approach would send the whole `updated_file` throughout the network
 (which can be quite big),
-rsync will try to improve on this result, by exploiting the similarities between the two files:
+rsync will try to improve on this result by exploiting the similarities between the two files:
 
 1. User A computes a `signature` for `basis_file`.  
    <sub> This `signature` "represents" the contents of `basis_file` approximately, and is much smaller. </sub>
@@ -39,15 +39,15 @@ rsync will try to improve on this result, by exploiting the similarities between
 5. User A uses `delta` to update `basis_file`.
 
 During the process, we have sent two files throughout the network: `signature` and `delta`.
-As long as `size(signature)` + `size(delta)` is smaller than `size(updated_file)` we have made
+As long as `size(signature)` + `size(delta)` is smaller than `size(updated_file)`, we have made
 improvements regarding network resources.
 
 **Note** If the networking capabilities between the two users is asymmetric,
 this may not be an improvement.
 
 **Note** We have traded computation time for memory.
-While this algorithm sends less resources through the network, it requires both User A and User B to process the files.
-(User A computes a signature and updates a file, User B computes a delta).
+While this algorithm sends fewer resources through the network, it requires both User A and User B to process the files.
+(User A computes a signature and updates a file, and User B computes a delta).
 
 ## Glossary
 
@@ -55,13 +55,13 @@ These terms are used throughout the code.
 
 - `basis_file` - file that user A has.
 - `updated_file` - file that user B has, generally an updated version of `basis_file`.
-- `signature` - file representing, approximately, the contents of `basis_file`.
+- `signature` - file representing approximately the contents of `basis_file`.
 - `delta` - file representing the differences between `basis_file` and `updated_file`.
 - `recreated` - resulting file after applying the `delta` to `basis_file`.
 
 ## The Code
 
-The code has 3 main functions which are used through the command-line.
+The code has three main functions, which are used through the command line.
 In pseudocode:
 
 1. `compute_signature(basis_file) -> signature`
@@ -70,8 +70,8 @@ In pseudocode:
 
 ## Testing Methodology
 
-A `TestCase` consists of a `basis_file` and an `updated_file`.
-The test succeeds if we are able to recreate the `update_file` exactly, by running the 3 main functions, in order.  
+A `TestCase` consists of a `basis_file` and a `updated_file`.
+The test succeeds if we are able to recreate the `update_file` exactly by running the three main functions in order.  
 The repository has `TestCases` examples under `/tests/integration_tests/test_files/`.
 The integration tests are #[ignored] by default as I could not get them running correctly in the CI.
 
@@ -95,11 +95,11 @@ The efficiency of the algorithm depends primarily on:
 - The degree of similarity between the files
 - The block size used for dividing each file
 
-![Image with measurements from Linux source. Image shows block sizes around 3000 bytes to
-be the better performing, with worse values for too small blocks (< 100) and too big blocks (> 10000)](./analysis/linux_plot.png)
+![Image with measurements from Linux source. The image shows block sizes of around 3000 bytes to
+be the better performing, with worse values for too-small blocks (< 100) and too-big blocks (> 10000)](./analysis/linux_plot.png)
 
-Blocks of around 3000 bytes were the best performing, with up to 18 compression rate.  
-Following our intuition, both too small blocks and too big blocks are bad.
+Blocks of around 3000 bytes were the best performing, with up to 18 compression ratio.  
+Following our intuition, both too-small blocks and too-big blocks do not perform well.
 
 If a block is too small, `signature` alone will be too big.  
 If a block is too big, there's a very small chance of matching it with our file.
@@ -109,7 +109,7 @@ The measurements for this plot can be found [here](./analysis/linux_chunk_size_t
 **Note**
 As the code does not support multiple files yet, the hacky way I've got this to work was to
 merge every source code file together into a very big one. Then those two files (one for each version release)
-were tested through the algorithm. This is obviously not ideal, and will be corrected later, but for now it works.
+were tested through the algorithm. This is obviously not ideal and will be corrected later, but for now, it works.
 
 ## References:
 
