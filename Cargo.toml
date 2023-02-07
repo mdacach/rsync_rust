@@ -10,6 +10,7 @@ bytes = "*"
 clap = { version = "4.1.4", features = ["derive"] }
 color-eyre = "0.6.2"
 criterion = "0.4.0"
+csv = "1.1.6"
 itertools = "0.10.5"
 nanoid = "0.4.0"
 rand = "0.8.5"

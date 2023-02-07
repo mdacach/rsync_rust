@@ -20,7 +20,7 @@ struct CompressionData {
 impl fmt::Display for CompressionData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let size_using_rsync = self.signature_file_size + self.delta_file_size;
-        let compression_rate = size_using_rsync as f64 / self.updated_file_size as f64;
+        let compression_ratio = self.updated_file_size as f64 / size_using_rsync as f64;
         write!(
             f,
             "Compression Data for TestCase {}\
@@ -30,7 +30,7 @@ impl fmt::Display for CompressionData {
             signature_file size: {}\n\
             delta_file size: {}\n\
             total size using rsync: {}\n\
-            efficiency: {:.3}",
+            compression_ratio: {:.2}",
             self.test_case.directory_path.display(),
             self.chunk_size_used,
             self.basis_file_size,
@@ -38,7 +38,7 @@ impl fmt::Display for CompressionData {
             self.signature_file_size,
             self.delta_file_size,
             size_using_rsync,
-            compression_rate
+            compression_ratio
         )
     }
 }
@@ -83,6 +83,38 @@ fn generate_intermediate_files(test_case: &TestCase, chunk_size: usize) -> (Path
 // 500 -> 0.10546
 // 2500 -> 0.05376
 // 10000 -> 0.07616
+#[test]
+#[ignore]
+fn compute_linux_compression() {
+    let test_case = TestCase::try_from(PathBuf::from(
+        "tests/linux_kernel_source_code/as_single_files",
+    ))
+    .unwrap();
+
+    let output_file = File::create("tests/linux.csv").unwrap();
+    let mut writer = csv::Writer::from_writer(output_file);
+
+    let chunk_sizes = vec![
+        20, 50, 100, 250, 500, 750, 1000, 1500, 2000, 2500, 3000, 5000, 7000, 10000,
+    ];
+
+    writer
+        .write_record(["chunk_size", "total_size", "compression_ratio"])
+        .expect("Could not write to file");
+    for cs in chunk_sizes {
+        println!("running for {cs}");
+        let data = compute_compression_data(&test_case, cs);
+        let total_size = data.signature_file_size + data.delta_file_size;
+        let compression_ratio = data.updated_file_size as f64 / total_size as f64;
+        writer
+            .write_record([
+                &cs.to_string(),
+                &total_size.to_string(),
+                &format!("{compression_ratio:.2}"),
+            ])
+            .expect("Could not write to file");
+    }
+}
 
 #[test]
 #[ignore]
