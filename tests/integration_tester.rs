@@ -111,7 +111,6 @@ fn assert_reconstruction_is_correct_for_test_case(test_case: &TestCase) {
 
     let recreated_file = directory_path.join("recreated_file");
 
-    // TODO: Make stuff accept Path instead of &str
     run_signature_command(basis_file, &signature, 10);
     run_delta_command(&signature, updated_file, &delta, 10);
     run_patch_command(basis_file, &delta, &recreated_file, 10);
@@ -145,7 +144,7 @@ fn gather_test_cases_in_directory(directory_path: &PathBuf) -> Vec<TestCase> {
         .expect("Could not read directory path")
         .filter_map(|x| x.ok())
         .map(|x| x.path())
-        .map(TestCase::try_from) // TODO: try here
+        .map(TestCase::try_from)
         .filter_map(|x| x.ok())
         .collect()
 }
