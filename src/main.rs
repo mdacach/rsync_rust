@@ -171,7 +171,8 @@ fn handle_delta_command(
     ))?;
     let delta = compute_delta_to_our_file(signature, updated_file_bytes, chunk_size);
 
-    io_utils::write_to_file(&delta_filename, delta.into()).wrap_err(format!(
+    let delta_bytes = delta.try_into()?;
+    io_utils::write_to_file(&delta_filename, delta_bytes).wrap_err(format!(
         "Unable to write to file: {}",
         &delta_filename.display()
     ))
@@ -190,7 +191,7 @@ fn handle_patch_command(
             std::process::exit(0);
         }
     };
-    let delta_file_bytes = match io_utils::attempt_to_read_file(delta_filename) {
+    let delta_file_bytes = match io_utils::attempt_to_read_file(&delta_filename) {
         Ok(bytes) => bytes,
         Err(error_message) => {
             println!("Error while reading Delta file:\n{}", error_message);
@@ -198,7 +199,10 @@ fn handle_patch_command(
         }
     };
 
-    let delta: Delta = delta_file_bytes.into();
+    let delta = delta_file_bytes.try_into().context(format!(
+        r#"Delta file path provided was "{}"."#,
+        &delta_filename.display()
+    ))?;
     let recreated = apply_delta(basis_file_bytes, delta, chunk_size);
 
     io_utils::write_to_file(&recreated_filename, recreated).wrap_err(format!(

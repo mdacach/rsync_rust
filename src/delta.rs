@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
 use bytes::Bytes;
+use color_eyre::eyre::Context;
+use color_eyre::Help;
 use rolling_hash_rust::RollingHash;
 use serde::{Deserialize, Serialize};
 
@@ -23,17 +25,26 @@ pub enum Token {
 }
 
 // We are using `rmp_serde` as a efficient binary format to save the files in.
-impl From<Delta> for Bytes {
-    fn from(value: Delta) -> Self {
-        rmp_serde::to_vec(&value)
-            .expect("Could not serialize Delta into Bytes")
-            .into()
+impl TryFrom<Delta> for Bytes {
+    type Error = color_eyre::Report;
+
+    fn try_from(delta: Delta) -> Result<Self, Self::Error> {
+        let serialized = rmp_serde::to_vec(&delta)?;
+        Ok(serialized.into())
     }
 }
 
-impl From<Bytes> for Delta {
-    fn from(value: Bytes) -> Delta {
-        rmp_serde::from_slice(&value).expect("Could not deserialize Delta from Bytes")
+impl TryFrom<Bytes> for Delta {
+    type Error = color_eyre::Report;
+
+    fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
+        let delta = rmp_serde::from_slice(&bytes)
+            .wrap_err("Could not read Delta from file provided.")
+            .suggestion(
+                "Did you provide the correct path for the Delta file?\n\
+                         It must have been generated as an output from a previous `delta` command.",
+            )?;
+        Ok(delta)
     }
 }
 
