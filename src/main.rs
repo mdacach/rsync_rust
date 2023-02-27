@@ -40,7 +40,7 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::Context;
 
-use rsync_rust::domain::delta::{compute_delta_to_our_file, Delta};
+use rsync_rust::domain::delta::compute_delta_to_our_file;
 use rsync_rust::domain::patch::apply_delta;
 use rsync_rust::domain::signature::compute_signature;
 use rsync_rust::io_utils;
@@ -127,13 +127,8 @@ fn handle_signature_command(
     signature_output_filename: PathBuf,
     chunk_size: usize,
 ) -> color_eyre::Result<(), color_eyre::Report> {
-    let basis_file_bytes = match io_utils::attempt_to_read_file(basis_filename) {
-        Ok(bytes) => bytes,
-        Err(error_message) => {
-            println!("Error while reading Basis file:\n{}", error_message);
-            std::process::exit(0);
-        }
-    };
+    let basis_file_bytes = io_utils::attempt_to_read_file(basis_filename)
+        .context("Error while reading Basis file provided as argument for `signature` command")?;
 
     let signature = compute_signature(basis_file_bytes, chunk_size);
 
@@ -150,20 +145,10 @@ fn handle_delta_command(
     delta_filename: PathBuf,
     chunk_size: usize,
 ) -> color_eyre::Result<(), color_eyre::Report> {
-    let signature_file_bytes = match io_utils::attempt_to_read_file(&signature_filename) {
-        Ok(bytes) => bytes,
-        Err(error_message) => {
-            println!("Error while reading Signature file:\n{}", error_message);
-            std::process::exit(0);
-        }
-    };
-    let updated_file_bytes = match io_utils::attempt_to_read_file(updated_filename) {
-        Ok(bytes) => bytes,
-        Err(error_message) => {
-            println!("Error while reading Updated file:\n{}", error_message);
-            std::process::exit(0);
-        }
-    };
+    let signature_file_bytes = io_utils::attempt_to_read_file(&signature_filename)
+        .context("Error while reading Signature file provided as argument to `delta` command")?;
+    let updated_file_bytes = io_utils::attempt_to_read_file(updated_filename)
+        .context("Error while reading Updated file provided as argument to `delta` command")?;
 
     let signature = signature_file_bytes.try_into().context(format!(
         r#"Signature file path provided was "{}"."#,
@@ -184,20 +169,10 @@ fn handle_patch_command(
     recreated_filename: PathBuf,
     chunk_size: usize,
 ) -> color_eyre::Result<(), color_eyre::Report> {
-    let basis_file_bytes = match io_utils::attempt_to_read_file(basis_filename) {
-        Ok(bytes) => bytes,
-        Err(error_message) => {
-            println!("Error while reading Basis file:\n{}", error_message);
-            std::process::exit(0);
-        }
-    };
-    let delta_file_bytes = match io_utils::attempt_to_read_file(&delta_filename) {
-        Ok(bytes) => bytes,
-        Err(error_message) => {
-            println!("Error while reading Delta file:\n{}", error_message);
-            std::process::exit(0);
-        }
-    };
+    let basis_file_bytes = io_utils::attempt_to_read_file(basis_filename)
+        .context("Error while reading Basis file provided as argument to `patch` command")?;
+    let delta_file_bytes = io_utils::attempt_to_read_file(&delta_filename)
+        .context("Error while reading Delta file provided as argument to `patch` command")?;
 
     let delta = delta_file_bytes.try_into().context(format!(
         r#"Delta file path provided was "{}"."#,

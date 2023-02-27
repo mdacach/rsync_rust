@@ -4,17 +4,17 @@ use std::io::Write;
 use std::path::Path;
 
 use bytes::Bytes;
+use color_eyre::eyre::Context;
+use color_eyre::Help;
 
-pub fn attempt_to_read_file<P: AsRef<Path>>(path: P) -> Result<Bytes, String> {
+pub fn attempt_to_read_file<P: AsRef<Path>>(
+    path: P,
+) -> color_eyre::Result<Bytes, color_eyre::Report> {
     match fs::read(&path) {
         Ok(bytes) => Ok(bytes.into()),
-        Err(error) => Err(format!(
-            "Unable to read file: {}\n\
-                     Is the path provided correct?\n\
-                     Caused by: {}",
-            path.as_ref().display(),
-            error
-        )),
+        Err(error) => Err(color_eyre::Report::new(error))
+            .context(format!(r#"Path provided: "{}""#, path.as_ref().display()))
+            .suggestion("Are you sure the path provided is correct? Note that it should be a relative path."),
     }
 }
 
