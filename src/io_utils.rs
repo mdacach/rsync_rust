@@ -5,18 +5,16 @@ use std::path::Path;
 
 use bytes::Bytes;
 
-pub fn attempt_to_read_file<P: AsRef<Path>>(path: P) -> Bytes {
+pub fn attempt_to_read_file<P: AsRef<Path>>(path: P) -> Result<Bytes, String> {
     match fs::read(&path) {
-        Ok(bytes) => bytes.into(),
-        Err(error) => {
-            panic!(
-                "Unable to read file: {}\n\
-                          Are you sure the path provided is correct?\n\
-                          Error: {}",
-                path.as_ref().display(),
-                error
-            );
-        }
+        Ok(bytes) => Ok(bytes.into()),
+        Err(error) => Err(format!(
+            "Unable to read file: {}\n\
+                     Is the path provided correct?\n\
+                     Caused by: {}",
+            path.as_ref().display(),
+            error
+        )),
     }
 }
 

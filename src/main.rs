@@ -133,7 +133,14 @@ fn handle_signature_command(
     signature_output_filename: PathBuf,
     chunk_size: usize,
 ) {
-    let basis_file_bytes = io_utils::attempt_to_read_file(basis_filename);
+    let basis_file_bytes = match io_utils::attempt_to_read_file(basis_filename) {
+        Ok(bytes) => bytes,
+        Err(error_message) => {
+            println!("Error while reading Basis file:\n{}", error_message);
+            std::process::exit(0);
+        }
+    };
+
     let signature = compute_signature(basis_file_bytes, chunk_size);
 
     io_utils::write_to_file(signature_output_filename, signature.into())
@@ -147,8 +154,20 @@ fn handle_delta_command(
     delta_filename: PathBuf,
     chunk_size: usize,
 ) {
-    let signature_file_bytes = io_utils::attempt_to_read_file(signature_filename);
-    let updated_file_bytes = io_utils::attempt_to_read_file(updated_filename);
+    let signature_file_bytes = match io_utils::attempt_to_read_file(signature_filename) {
+        Ok(bytes) => bytes,
+        Err(error_message) => {
+            println!("Error while reading Signature file:\n{}", error_message);
+            std::process::exit(0);
+        }
+    };
+    let updated_file_bytes = match io_utils::attempt_to_read_file(updated_filename) {
+        Ok(bytes) => bytes,
+        Err(error_message) => {
+            println!("Error while reading Updated file:\n{}", error_message);
+            std::process::exit(0);
+        }
+    };
 
     let delta =
         compute_delta_to_our_file(signature_file_bytes.into(), updated_file_bytes, chunk_size);
@@ -164,8 +183,20 @@ fn handle_patch_command(
     recreated_filename: PathBuf,
     chunk_size: usize,
 ) {
-    let basis_file_bytes = io_utils::attempt_to_read_file(basis_filename);
-    let delta_file_bytes = io_utils::attempt_to_read_file(delta_filename);
+    let basis_file_bytes = match io_utils::attempt_to_read_file(basis_filename) {
+        Ok(bytes) => bytes,
+        Err(error_message) => {
+            println!("Error while reading Basis file:\n{}", error_message);
+            std::process::exit(0);
+        }
+    };
+    let delta_file_bytes = match io_utils::attempt_to_read_file(delta_filename) {
+        Ok(bytes) => bytes,
+        Err(error_message) => {
+            println!("Error while reading Delta file:\n{}", error_message);
+            std::process::exit(0);
+        }
+    };
 
     let delta: Delta = delta_file_bytes.into();
     let recreated = apply_delta(basis_file_bytes, delta, chunk_size);
