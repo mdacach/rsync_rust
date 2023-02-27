@@ -85,7 +85,7 @@ enum Commands {
     },
 }
 
-fn main() {
+fn main() -> color_eyre::Result<(), color_eyre::Report> {
     // For prettier errors.
     color_eyre::install().expect("Could not install color_eyre");
 
@@ -96,35 +96,29 @@ fn main() {
             basis_filename,
             signature_output_filename,
             chunk_size,
-        } => {
-            handle_signature_command(basis_filename, signature_output_filename, chunk_size);
-        }
+        } => handle_signature_command(basis_filename, signature_output_filename, chunk_size),
         Commands::Delta {
             signature_filename,
             updated_filename,
             delta_filename,
             chunk_size,
-        } => {
-            handle_delta_command(
-                signature_filename,
-                updated_filename,
-                delta_filename,
-                chunk_size,
-            );
-        }
+        } => handle_delta_command(
+            signature_filename,
+            updated_filename,
+            delta_filename,
+            chunk_size,
+        ),
         Commands::Patch {
             basis_filename,
             delta_filename,
             recreated_filename,
             chunk_size,
-        } => {
-            handle_patch_command(
-                basis_filename,
-                delta_filename,
-                recreated_filename,
-                chunk_size,
-            );
-        }
+        } => handle_patch_command(
+            basis_filename,
+            delta_filename,
+            recreated_filename,
+            chunk_size,
+        ),
     }
 }
 
@@ -132,7 +126,7 @@ fn handle_signature_command(
     basis_filename: PathBuf,
     signature_output_filename: PathBuf,
     chunk_size: usize,
-) {
+) -> color_eyre::Result<(), color_eyre::Report> {
     let basis_file_bytes = match io_utils::attempt_to_read_file(basis_filename) {
         Ok(bytes) => bytes,
         Err(error_message) => {
@@ -143,12 +137,11 @@ fn handle_signature_command(
 
     let signature = compute_signature(basis_file_bytes, chunk_size);
 
-    io_utils::write_to_file(&signature_output_filename, signature.into())
-        .wrap_err(format!(
-            "Unable to write to file: {}",
-            &signature_output_filename.display()
-        ))
-        .unwrap();
+    let signature_bytes = signature.try_into()?;
+    io_utils::write_to_file(&signature_output_filename, signature_bytes).wrap_err(format!(
+        "Unable to write to file: {}",
+        &signature_output_filename.display()
+    ))
 }
 
 fn handle_delta_command(
@@ -156,8 +149,8 @@ fn handle_delta_command(
     updated_filename: PathBuf,
     delta_filename: PathBuf,
     chunk_size: usize,
-) {
-    let signature_file_bytes = match io_utils::attempt_to_read_file(signature_filename) {
+) -> color_eyre::Result<(), color_eyre::Report> {
+    let signature_file_bytes = match io_utils::attempt_to_read_file(&signature_filename) {
         Ok(bytes) => bytes,
         Err(error_message) => {
             println!("Error while reading Signature file:\n{}", error_message);
@@ -172,15 +165,16 @@ fn handle_delta_command(
         }
     };
 
-    let delta =
-        compute_delta_to_our_file(signature_file_bytes.into(), updated_file_bytes, chunk_size);
+    let signature = signature_file_bytes.try_into().context(format!(
+        r#"Signature file path provided was "{}"."#,
+        &signature_filename.display()
+    ))?;
+    let delta = compute_delta_to_our_file(signature, updated_file_bytes, chunk_size);
 
-    io_utils::write_to_file(&delta_filename, delta.into())
-        .wrap_err(format!(
-            "Unable to write to file: {}",
-            &delta_filename.display()
-        ))
-        .unwrap();
+    io_utils::write_to_file(&delta_filename, delta.into()).wrap_err(format!(
+        "Unable to write to file: {}",
+        &delta_filename.display()
+    ))
 }
 
 fn handle_patch_command(
@@ -188,7 +182,7 @@ fn handle_patch_command(
     delta_filename: PathBuf,
     recreated_filename: PathBuf,
     chunk_size: usize,
-) {
+) -> color_eyre::Result<(), color_eyre::Report> {
     let basis_file_bytes = match io_utils::attempt_to_read_file(basis_filename) {
         Ok(bytes) => bytes,
         Err(error_message) => {
@@ -207,10 +201,8 @@ fn handle_patch_command(
     let delta: Delta = delta_file_bytes.into();
     let recreated = apply_delta(basis_file_bytes, delta, chunk_size);
 
-    io_utils::write_to_file(&recreated_filename, recreated)
-        .wrap_err(format!(
-            "Unable to write to file: {}",
-            &recreated_filename.display()
-        ))
-        .unwrap();
+    io_utils::write_to_file(&recreated_filename, recreated).wrap_err(format!(
+        "Unable to write to file: {}",
+        &recreated_filename.display()
+    ))
 }

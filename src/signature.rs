@@ -2,6 +2,8 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use bytes::Bytes;
+use color_eyre::eyre::Context;
+use color_eyre::Help;
 use rolling_hash_rust::RollingHash;
 use serde::{Deserialize, Serialize};
 
@@ -24,19 +26,27 @@ pub struct FileSignature {
 }
 
 // We are using `rmp_serde` as a efficient binary format to save the files in.
-impl From<FileSignature> for Bytes {
-    fn from(value: FileSignature) -> Self {
-        rmp_serde::to_vec(&value)
-            .expect("Could not serialize FileSignature into Bytes")
-            .into()
+// TODO: we can experiment with a custom made binary format and optimizations (the paper has some suggestions).
+impl TryFrom<FileSignature> for Bytes {
+    type Error = color_eyre::Report;
+
+    fn try_from(signature: FileSignature) -> Result<Self, Self::Error> {
+        let serialized = rmp_serde::to_vec(&signature)?;
+        Ok(serialized.into())
     }
 }
 
-// TODO: should it be TryFrom instead?
-// I am using From<Bytes> based on usage I have seen of FromStr, instead of TryFrom<str>
-impl From<Bytes> for FileSignature {
-    fn from(bytes: Bytes) -> Self {
-        rmp_serde::from_slice(&bytes).expect("Could not deserialize Bytes into FileSignature")
+impl TryFrom<Bytes> for FileSignature {
+    type Error = color_eyre::Report;
+
+    fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
+        let file_signature = rmp_serde::from_slice(&bytes)
+            .wrap_err("Could not read FileSignature from file provided.")
+            .suggestion(
+                "Did you provide the correct path for the Signature file?\n\
+                         It must have been generated as an output from a previous `signature` command.",
+            )?;
+        Ok(file_signature)
     }
 }
 
