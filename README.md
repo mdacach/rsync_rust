@@ -124,7 +124,8 @@ were tested through the algorithm. This is obviously not ideal and will be corre
 
 ## TODO
 
-1. Add example usage to README
-2. Improve error handling throughout the project
-3. Add multiple file processing functionality, as described in the paper.
-4. Improve the code as I get more familiar with Rust.
+- [ ] Add example usage to README.
+- [x] Improve error handling throughout the project.
+- [ ] Showcase error handling in README.
+- [ ] Add multiple file processing functionality, as described in the paper.
+- [ ] Improve the code as I get more familiar with Rust.
