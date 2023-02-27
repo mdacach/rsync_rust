@@ -6,7 +6,7 @@ use color_eyre::Help;
 use rolling_hash_rust::RollingHash;
 use serde::{Deserialize, Serialize};
 
-use crate::signature::{calculate_strong_hash, FileSignature};
+use crate::domain::{calculate_strong_hash, FileSignature};
 
 /// Represents how to transform the basis file into the updated file, in order.
 ///
@@ -183,7 +183,7 @@ pub fn compute_delta_to_our_file(
 mod tests {
     use bytes::Bytes;
 
-    use crate::signature::compute_signature;
+    use crate::domain::signature::compute_signature;
 
     use super::*;
 

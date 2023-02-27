@@ -1,6 +1,6 @@
 use bytes::Bytes;
 
-use crate::delta::{Delta, Token};
+use crate::domain::delta::{Delta, Token};
 
 /// Applies a Delta to a basis file.
 ///
@@ -31,7 +31,7 @@ pub fn apply_delta(basis_file: Bytes, delta: Delta, chunk_size: usize) -> Bytes 
 
 #[cfg(test)]
 mod tests {
-    use crate::delta::{Delta, Token};
+    use crate::domain::delta::{Delta, Token};
 
     use super::*;
 

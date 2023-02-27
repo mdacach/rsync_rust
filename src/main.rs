@@ -40,10 +40,10 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::Context;
 
-use rsync_rust::delta::{compute_delta_to_our_file, Delta};
+use rsync_rust::domain::delta::{compute_delta_to_our_file, Delta};
+use rsync_rust::domain::patch::apply_delta;
+use rsync_rust::domain::signature::compute_signature;
 use rsync_rust::io_utils;
-use rsync_rust::patch::apply_delta;
-use rsync_rust::signature::compute_signature;
 
 #[derive(Parser)]
 struct Arguments {
