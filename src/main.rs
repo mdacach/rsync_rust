@@ -143,8 +143,11 @@ fn handle_signature_command(
 
     let signature = compute_signature(basis_file_bytes, chunk_size);
 
-    io_utils::write_to_file(signature_output_filename, signature.into())
-        .wrap_err("Unable to write to file")
+    io_utils::write_to_file(&signature_output_filename, signature.into())
+        .wrap_err(format!(
+            "Unable to write to file: {}",
+            &signature_output_filename.display()
+        ))
         .unwrap();
 }
 
@@ -172,8 +175,11 @@ fn handle_delta_command(
     let delta =
         compute_delta_to_our_file(signature_file_bytes.into(), updated_file_bytes, chunk_size);
 
-    io_utils::write_to_file(delta_filename, delta.into())
-        .wrap_err("Unable to write to file")
+    io_utils::write_to_file(&delta_filename, delta.into())
+        .wrap_err(format!(
+            "Unable to write to file: {}",
+            &delta_filename.display()
+        ))
         .unwrap();
 }
 
@@ -201,7 +207,10 @@ fn handle_patch_command(
     let delta: Delta = delta_file_bytes.into();
     let recreated = apply_delta(basis_file_bytes, delta, chunk_size);
 
-    io_utils::write_to_file(recreated_filename, recreated)
-        .wrap_err("Unable to write to file")
+    io_utils::write_to_file(&recreated_filename, recreated)
+        .wrap_err(format!(
+            "Unable to write to file: {}",
+            &recreated_filename.display()
+        ))
         .unwrap();
 }
