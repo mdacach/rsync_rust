@@ -1,8 +1,7 @@
 use bytes::Bytes;
 use criterion::{criterion_group, criterion_main, Criterion};
 
-use rsync_rust::signature;
-use rsync_rust::{delta, patch};
+use rsync_rust::domain::{delta, patch, signature};
 
 pub fn signature_benchmark(c: &mut Criterion) {
     let chunk_size = 100;
