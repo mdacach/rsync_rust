@@ -56,30 +56,32 @@ struct Arguments {
 //              e.g: `signature_filename` needs to be convertible to FileSignature
 enum Commands {
     Signature {
-        basis_filename: PathBuf,
         // The basis file to compute Signature from.
-        signature_output_filename: PathBuf,
+        basis_filename: PathBuf,
         // Where to save the Signature file.
+        signature_output_filename: PathBuf,
+        // Size for each block.
         #[arg(short, long, default_value_t = 10)]
-        chunk_size: usize, // Size for each block.
+        chunk_size: usize,
     },
     Delta {
-        signature_filename: PathBuf,
         // Signature file computed by `Signature` command.
-        updated_filename: PathBuf,
+        signature_filename: PathBuf,
         // File to compute `Delta` from `Signature`.
-        delta_filename: PathBuf,
+        updated_filename: PathBuf,
         // Where to save the `Delta` file.
+        delta_filename: PathBuf,
+        // Size for each block.
         #[arg(short, long, default_value_t = 10)]
-        chunk_size: usize, // Size for each block.
+        chunk_size: usize,
     },
     Patch {
-        basis_filename: PathBuf,
         // File to apply changes.
-        delta_filename: PathBuf,
+        basis_filename: PathBuf,
         // Delta file computed by `Delta` command.
-        recreated_filename: PathBuf,
+        delta_filename: PathBuf,
         // Where to save the updated file.
+        recreated_filename: PathBuf,
         #[arg(short, long, default_value_t = 10)]
         chunk_size: usize, // Size for each block.
     },
