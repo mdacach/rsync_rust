@@ -2,12 +2,6 @@ use std::path::PathBuf;
 use std::process::Command;
 
 #[derive(Debug)]
-struct NotDirectoryError;
-
-#[derive(Debug)]
-struct NoInputFilesError;
-
-#[derive(Debug)]
 pub enum TestCaseConversionErrorType {
     NotDirectoryError,
     NoInputFilesError,
