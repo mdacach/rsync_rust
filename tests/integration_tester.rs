@@ -21,8 +21,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use nanoid::nanoid;
-use rand::distributions::Alphanumeric;
-use rand::prelude::*;
+use rand::distr::{Alphanumeric, Distribution};
 
 use rsync_rust::io_utils;
 use rsync_rust::test_utils::*;
@@ -64,7 +63,7 @@ fn create_5_test_cases() {
 }
 
 fn generate_random_bytes(length: usize) -> Vec<u8> {
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
 
     Alphanumeric.sample_iter(&mut rng).take(length).collect()
 }
